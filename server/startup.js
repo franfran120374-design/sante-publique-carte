@@ -4,16 +4,18 @@ const fs = require('fs');
 
 const isPostgres = !!process.env.DATABASE_URL;
 
-console.log('=== SantéPublique.carte - Démarrage ===');
-console.log(`Mode: ${isPostgres ? 'PostgreSQL' : 'SQLite (local)'}`);
-
-// Write import status file
 const STATUS_FILE = path.join(__dirname, 'import-status.json');
 function setImportStatus(status, message, counts = {}) {
-    const data = { status, message, ...counts, timestamp: new Date().toISOString() };
+    const data = { status, message, mode: isPostgres ? 'postgresql' : 'sqlite', ...counts, timestamp: new Date().toISOString() };
     fs.writeFileSync(STATUS_FILE, JSON.stringify(data));
-    console.log(`[IMPORT] ${status}: ${message}`);
+    console.log(`[IMPORT] ${status}: ${message} (mode: ${data.mode})`);
 }
+
+setImportStatus('starting', 'Démarrage du serveur...');
+
+console.log('=== SantéPublique.carte - Démarrage ===');
+console.log(`Mode: ${isPostgres ? 'PostgreSQL' : 'SQLite (local)'}`);
+console.log(`DATABASE_URL: ${isPostgres ? 'défini (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NON DÉFINI'}`);
 
 async function start() {
     if (isPostgres) {
@@ -57,8 +59,7 @@ async function start() {
         await pool.end();
 
         if (count === 0 && profsCount === 0) {
-            setImportStatus('pending', 'Import des données en arrière-plan...');
-            // Background import - log to file
+            setImportStatus('pending', 'Base PostgreSQL vide - import en arrière-plan...');
             const logFile = path.join(__dirname, 'import.log');
             const logStream = fs.createWriteStream(logFile, { flags: 'a' });
             const importProc = spawn('node', ['server/scripts/import-pg.js'], {
@@ -72,25 +73,19 @@ async function start() {
             importProc.unref();
             importProc.on('exit', (code) => {
                 if (code === 0) {
-                    setImportStatus('done', 'Import terminé');
+                    setImportStatus('done', 'Import terminé avec succès');
                 } else {
-                    setImportStatus('error', `Import échoué (code ${code})`);
+                    setImportStatus('error', `Import échoué (code ${code}) - vérifie import.log`);
                 }
             });
             console.log(`Import lancé en arrière-plan (PID: ${importProc.pid})`);
         } else {
-            setImportStatus('done', 'Base déjà chargée', { etablissements: count, professionnels: profsCount });
+            setImportStatus('done', 'Base PostgreSQL déjà chargée', { etablissements: count, professionnels: profsCount });
             console.log(`Base chargée: ${count} établissements, ${profsCount} professionnels`);
         }
     } else {
-        const Database = require('better-sqlite3');
-        const dbDir = path.join(__dirname, 'db');
-        if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-        const dbPath = path.join(dbDir, 'sante.db');
-        if (!fs.existsSync(dbPath)) {
-            console.log('Base SQLite absente, seed...');
-            require('child_process').execSync('node server/db/seed.js', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
-        }
+        console.log('Pas de DATABASE_URL - mode SQLite local');
+        setImportStatus('done', 'Mode SQLite local (pas de données PostgreSQL)');
     }
 
     // Start server immediately
@@ -112,6 +107,7 @@ async function start() {
 }
 
 start().catch(err => {
+    setImportStatus('error', `Erreur fatale: ${err.message}`);
     console.error('Erreur fatale:', err);
     process.exit(1);
 });
