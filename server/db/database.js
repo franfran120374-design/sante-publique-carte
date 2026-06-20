@@ -20,10 +20,12 @@ class DatabaseAdapter {
             await this.createPGTables();
         } else {
             console.log('Mode SQLite (local)');
-            const dbPath = path.join(__dirname, 'db', 'sante.db');
+            const dbDir = path.join(__dirname);
+            if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+            const dbPath = path.join(dbDir, 'sante.db');
             this.sqlite = new Database(dbPath);
             this.sqlite.pragma('journal_mode = WAL');
-            const schema = fs.readFileSync(path.join(__dirname, 'db', 'schema.sql'), 'utf8');
+            const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
             this.sqlite.exec(schema);
         }
     }
