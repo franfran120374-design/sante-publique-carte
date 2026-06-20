@@ -41,8 +41,8 @@ const DEPT_COORDS = {
 
 function jitter() { return (Math.random() - 0.5) * 0.02; }
 
-const FINESS_URL = 'https://www.data.gouv.fr/api/1/datasets/r/2ce43ade-8d2c-4d1d-81da-ca06c82abc68';
-const AMELI_URL = 'https://www.data.gouv.fr/api/1/datasets/r/432983b9-2e6f-473a-b35a-20403c300a5f';
+const FINESS_URL = 'https://static.data.gouv.fr/resources/finess-extraction-du-fichier-des-etablissements/20260512-091308/etalab-cs1100502-stock-20260512-0339.csv';
+const AMELI_URL = 'https://static.data.gouv.fr/resources/annuaire-sante-ameli/20260615-004155/liste-ps-20260615-023046.csv';
 
 function setImportStatus(status, message, extra = {}) {
     const file = path.join(__dirname, '..', 'import-status.json');
@@ -90,13 +90,20 @@ module.exports = function(pool) {
 async function fetchWithRetry(url, retries = 3) {
     for (let i = 0; i < retries; i++) {
         try {
-            const res = await fetch(url, { redirect: 'follow', timeout: 600000 });
+            const res = await fetch(url, {
+                redirect: 'follow',
+                timeout: 600000,
+                headers: {
+                    'User-Agent': 'SantePubliqueCarte/1.0 (import)',
+                    'Accept': 'text/csv,text/plain,*/*'
+                }
+            });
             if (res.ok) return res;
             console.log(`[RETRY ${i+1}] HTTP ${res.status} for ${url}`);
         } catch (err) {
             console.log(`[RETRY ${i+1}] ${err.message} for ${url}`);
         }
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise(r => setTimeout(r, 10000));
     }
     throw new Error(`Failed after ${retries} retries: ${url}`);
 }
