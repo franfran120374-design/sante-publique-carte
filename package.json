@@ -8,12 +8,14 @@
     "dev": "node server/server.js",
     "import-finess": "node server/scripts/import-finess.js",
     "import-ameli": "node server/scripts/import-ameli.js",
+    "import-pg": "node server/scripts/import-pg.js",
     "seed": "node server/db/seed.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "pg": "^8.13.0"
   }
 }

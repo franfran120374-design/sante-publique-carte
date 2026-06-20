@@ -3,11 +3,21 @@ services:
     name: sante-publique-carte
     runtime: node
     plan: free
-    buildCommand: npm install && node server/db/seed.js
+    buildCommand: npm install
     startCommand: node server/startup.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sante-publique-db
+          property: connectionString
     healthCheckPath: /
+
+databases:
+  - name: sante-publique-db
+    plan: free
+    databaseName: sante_publique
+    user: sante_user
