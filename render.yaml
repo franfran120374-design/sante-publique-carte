@@ -3,8 +3,8 @@ services:
     name: sante-publique-carte
     runtime: node
     plan: free
-    buildCommand: npm install
-    startCommand: node server/server.js
+    buildCommand: npm install && node server/db/seed.js
+    startCommand: node server/startup.js
     envVars:
       - key: NODE_ENV
         value: production
