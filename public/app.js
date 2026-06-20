@@ -1,5 +1,5 @@
 const API = '';
-let map, markers = { etabs: [], profs: [], signals: [], zones: [] };
+let map, markers = { etabs: [], profs: [], signals: [], search: [] };
 let userLat = 46.603354, userLng = 1.888334;
 let selectedType = null;
 
@@ -18,12 +18,16 @@ async function pollImportStatus() {
     try {
         const res = await fetch('/api/import-status');
         const status = await res.json();
-        if (status.status === 'pending' || status.status === 'running') {
-            showImportBanner(status.message || 'Import des données en cours...');
+        if (status.status === 'pending' || status.status === 'running' || status.status === 'starting') {
+            showImportBanner(status.message || 'Chargement des données...');
             setTimeout(pollImportStatus, 10000);
         } else if (status.status === 'done') {
             hideImportBanner();
             loadData();
+        } else if (status.status === 'error') {
+            showImportBanner(status.message || 'Erreur');
+            document.getElementById('import-banner').style.background = '#e74c3c';
+            document.getElementById('import-banner').style.color = 'white';
         } else {
             hideImportBanner();
         }
@@ -40,7 +44,7 @@ function showImportBanner(msg) {
         banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#f59e0b;color:#000;text-align:center;padding:10px;z-index:10000;font-weight:bold;font-size:14px;';
         document.body.prepend(banner);
     }
-    banner.textContent = msg + ' — La carte se chargera automatiquement.';
+    banner.textContent = msg;
     banner.style.display = 'block';
 }
 
@@ -76,7 +80,6 @@ function initNav() {
             document.getElementById(`view-${view}`).classList.add('active');
 
             if (view === 'stats') loadStats();
-            if (view === 'dashboard') loadDashboard();
         });
     });
 }
@@ -104,7 +107,7 @@ function initForm() {
 
     document.getElementById('signal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!selectedType) return alert('Sélectionnez un type de signal');
+        if (!selectedType) return alert('Selectionnez un type de signal');
 
         const data = {
             type: selectedType,
@@ -115,22 +118,21 @@ function initForm() {
             auteur_pseudo: document.getElementById('pseudo').value || null
         };
 
-        if (!data.latitude || !data.longitude) return alert('Géolocalisez ou cliquez sur la carte');
+        if (!data.latitude || !data.longitude) return alert('Geolocalisez ou cliquez sur la carte');
 
         try {
-            const res = await fetch(`${API}/api/signalements`, {
+            await fetch(`${API}/api/signalements`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            const result = await res.json();
-            alert('Signalement envoyé ! Merci.');
+            alert('Signalement envoye ! Merci.');
             document.getElementById('signal-form').reset();
             document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
             selectedType = null;
             loadData();
         } catch (err) {
-            alert('Erreur d\'envoi');
+            alert("Erreur d'envoi");
         }
     });
 }
@@ -138,22 +140,57 @@ function initForm() {
 function initSearch() {
     const input = document.getElementById('search-input');
     const btn = document.getElementById('search-btn');
+    const resultsDiv = document.getElementById('search-results') || createSearchResults();
 
     const doSearch = async () => {
         const q = input.value.trim();
-        if (!q) return;
+        if (!q || q.length < 2) return;
+
+        resultsDiv.innerHTML = '<div style="padding:10px;color:#999;">Recherche...</div>';
+        resultsDiv.style.display = 'block';
 
         try {
-            const res = await fetch(`${API}/api/data/recherche?q=${encodeURIComponent(q)}&lat=${userLat}&lng=${userLng}`);
+            const res = await fetch(`${API}/api/data/recherche?q=${encodeURIComponent(q)}&lat=${userLat}&lng=${userLng}&rayon=200`);
             const results = await res.json();
-            if (results.length > 0) {
-                const first = results[0];
-                if (first.latitude && first.longitude) {
-                    map.setView([first.latitude, first.longitude], 13);
+
+            clearSearchMarkers();
+
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div style="padding:10px;color:#999;">Aucun resultat</div>';
+                return;
+            }
+
+            let html = `<div style="padding:8px 10px;font-weight:bold;border-bottom:1px solid #eee;">${results.length} resultat(s) pour "${q}"</div>`;
+
+            results.forEach(r => {
+                const icon = r.source === 'etablissement' ? '🏥' : '👨‍⚕️';
+                html += `<div class="search-item" onclick="zoomToResult(${r.latitude},${r.longitude})">
+                    <span>${icon}</span>
+                    <div><strong>${r.name || ''}</strong><br><small>${r.categorie || ''} · ${r.commune || ''} ${r.code_postal || ''}</small></div>
+                </div>`;
+
+                if (r.latitude && r.longitude) {
+                    const color = r.source === 'etablissement' ? '#3498db' : '#27ae60';
+                    const icon2 = L.divIcon({
+                        className: 'custom-marker marker-search',
+                        iconSize: [20, 20],
+                        html: `<div style="width:20px;height:20px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:10px;color:white;">${r.source === 'etablissement' ? 'H' : 'D'}</div>`
+                    });
+                    const m = L.marker([r.latitude, r.longitude], { icon: icon2 })
+                        .bindPopup(`<strong>${r.name || ''}</strong><br>${r.categorie || ''}<br>${r.adresse || ''}<br>${r.commune || ''}`);
+                    m.addTo(map);
+                    markers.search.push(m);
                 }
+            });
+
+            resultsDiv.innerHTML = html;
+
+            if (results[0].latitude && results[0].longitude) {
+                map.setView([results[0].latitude, results[0].longitude], 13);
             }
         } catch (err) {
             console.error('Search error:', err);
+            resultsDiv.innerHTML = '<div style="padding:10px;color:#e74c3c;">Erreur de recherche</div>';
         }
     };
 
@@ -163,46 +200,74 @@ function initSearch() {
     });
 }
 
+function createSearchResults() {
+    const div = document.createElement('div');
+    div.id = 'search-results';
+    div.style.cssText = 'position:absolute;top:60px;right:10px;width:300px;max-height:400px;overflow-y:auto;background:white;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:1000;display:none;';
+    document.getElementById('map').parentElement.style.position = 'relative';
+    document.getElementById('map').parentElement.appendChild(div);
+    return div;
+}
+
+window.zoomToResult = (lat, lng) => {
+    if (lat && lng) map.setView([lat, lng], 15);
+};
+
+function clearSearchMarkers() {
+    markers.search.forEach(m => map.removeLayer(m));
+    markers.search = [];
+}
+
 function initLayers() {
-    ['etabs', 'profs', 'signals', 'zones'].forEach(layer => {
-        document.getElementById(`layer-${layer}`).addEventListener('change', (e) => {
-            const visible = e.target.checked;
-            markers[layer].forEach(m => {
-                if (visible) m.addTo(map);
-                else map.removeLayer(m);
+    ['etabs', 'profs', 'signals'].forEach(layer => {
+        const el = document.getElementById(`layer-${layer}`);
+        if (el) {
+            el.addEventListener('change', (e) => {
+                const visible = e.target.checked;
+                markers[layer].forEach(m => {
+                    if (visible) m.addTo(map);
+                    else map.removeLayer(m);
+                });
             });
-        });
+        }
     });
 }
 
 function getUserLocation() {
-    document.getElementById('locate-btn').addEventListener('click', () => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                userLat = pos.coords.latitude;
-                userLng = pos.coords.longitude;
-                map.setView([userLat, userLng], 12);
-                loadData();
-            });
-        }
-    });
+    const locateBtn = document.getElementById('locate-btn');
+    if (locateBtn) {
+        locateBtn.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    userLat = pos.coords.latitude;
+                    userLng = pos.coords.longitude;
+                    map.setView([userLat, userLng], 12);
+                    loadData();
+                });
+            }
+        });
+    }
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
             userLat = pos.coords.latitude;
             userLng = pos.coords.longitude;
-            map.setView([userLat, userLng], 10);
+            map.setView([userLat, userLng], 6);
+            loadData();
+        }, () => {
             loadData();
         });
+    } else {
+        loadData();
     }
 }
 
 async function loadData() {
     try {
         const [etabsRes, profsRes, signalsRes] = await Promise.all([
-            fetch(`${API}/api/data/etablissements?lat=${userLat}&lng=${userLng}&rayon=100&limit=300`),
-            fetch(`${API}/api/data/professionnels?lat=${userLat}&lng=${userLng}&rayon=100&limit=300`),
-            fetch(`${API}/api/signalements?lat=${userLat}&lng=${userLng}&rayon=200`)
+            fetch(`${API}/api/data/etablissements?lat=${userLat}&lng=${userLng}&rayon=200&limit=500`),
+            fetch(`${API}/api/data/professionnels?lat=${userLat}&lng=${userLng}&rayon=200&limit=500`),
+            fetch(`${API}/api/signalements?lat=${userLat}&lng=${userLng}&rayon=500`)
         ]);
 
         const etabs = await etabsRes.json();
@@ -224,30 +289,30 @@ async function loadData() {
 }
 
 function clearMarkers() {
-    Object.values(markers).forEach(arr => {
-        arr.forEach(m => map.removeLayer(m));
-        arr.length = 0;
+    ['etabs', 'profs', 'signals'].forEach(layer => {
+        markers[layer].forEach(m => map.removeLayer(m));
+        markers[layer] = [];
     });
 }
 
 function renderEtablissements(etabs) {
     const icon = L.divIcon({
         className: 'custom-marker marker-etab',
-        iconSize: [16, 16]
+        iconSize: [10, 10]
     });
 
     etabs.forEach(e => {
         if (!e.latitude || !e.longitude) return;
         const marker = L.marker([e.latitude, e.longitude], { icon })
             .bindPopup(`
-                <strong>${e.nom}</strong><br>
-                <small>${e.type || ''}</small><br>
-                ${e.adresse || ''}<br>
-                ${e.code_postal || ''} ${e.commune || ''}<br>
-                ${e.telephone ? '📞 ' + e.telephone : ''}
+                <strong>${escapeHtml(e.nom)}</strong><br>
+                <small>${escapeHtml(e.type || '')}</small><br>
+                ${escapeHtml(e.adresse || '')}<br>
+                ${escapeHtml(e.code_postal || '')} ${escapeHtml(e.commune || '')}<br>
+                ${e.telephone ? 'Tel: ' + escapeHtml(e.telephone) : ''}
             `);
         markers.etabs.push(marker);
-        if (document.getElementById('layer-etabs').checked) {
+        if (document.getElementById('layer-etabs') && document.getElementById('layer-etabs').checked) {
             marker.addTo(map);
         }
     });
@@ -256,22 +321,22 @@ function renderEtablissements(etabs) {
 function renderProfessionnels(profs) {
     const icon = L.divIcon({
         className: 'custom-marker marker-prof',
-        iconSize: [14, 14]
+        iconSize: [10, 10]
     });
 
     profs.forEach(p => {
         if (!p.latitude || !p.longitude) return;
         const marker = L.marker([p.latitude, p.longitude], { icon })
             .bindPopup(`
-                <strong>Dr. ${p.nom} ${p.prenom || ''}</strong><br>
-                <small>${p.profession || ''}</small><br>
-                ${p.specialite ? p.specialite + '<br>' : ''}
-                ${p.secteur || ''}<br>
-                ${p.adresse || ''}<br>
-                ${p.code_postal || ''} ${p.commune || ''}
+                <strong>${escapeHtml(p.nom)} ${escapeHtml(p.prenom || '')}</strong><br>
+                <small>${escapeHtml(p.profession || '')}</small><br>
+                ${p.specialite ? escapeHtml(p.specialite) + '<br>' : ''}
+                ${p.secteur ? 'Secteur ' + escapeHtml(p.secteur) + '<br>' : ''}
+                ${escapeHtml(p.adresse || '')}<br>
+                ${escapeHtml(p.code_postal || '')} ${escapeHtml(p.commune || '')}
             `);
         markers.profs.push(marker);
-        if (document.getElementById('layer-profs').checked) {
+        if (document.getElementById('layer-profs') && document.getElementById('layer-profs').checked) {
             marker.addTo(map);
         }
     });
@@ -292,26 +357,36 @@ function renderSignalements(signals) {
         const marker = L.marker([s.latitude, s.longitude], { icon })
             .bindPopup(`
                 <strong>${getTypeLabel(s.type)}</strong><br>
-                ${s.description || ''}<br>
-                ${s.duree_attente_min ? '⏱️ ' + s.duree_attente_min + ' min' : ''}<br>
-                <small>${formatDate(s.date_signalement)} · ${s.commune || ''}</small><br>
-                <small>Par ${s.auteur_pseudo || 'Anonyme'}</small><br>
-                <button onclick="voteSignal(${s.id}, 'up')" style="margin-top:5px;padding:3px 8px;border:1px solid #27ae60;border-radius:4px;background:white;cursor:pointer;">👍 ${s.votes_up || 0}</button>
-                <button onclick="voteSignal(${s.id}, 'down')" style="padding:3px 8px;border:1px solid #e74c3c;border-radius:4px;background:white;cursor:pointer;">👎 ${s.votes_down || 0}</button>
+                ${escapeHtml(s.description || '')}<br>
+                ${s.duree_attente_min ? s.duree_attente_min + ' min' : ''}<br>
+                <small>${formatDate(s.date_signalement)} · ${escapeHtml(s.commune || '')}</small><br>
+                <small>Par ${escapeHtml(s.auteur_pseudo || 'Anonyme')}</small><br>
+                <div style="margin-top:5px;">
+                    <button onclick="voteSignal(${s.id}, 'up')" style="padding:3px 8px;border:1px solid #27ae60;border-radius:4px;background:white;cursor:pointer;">+1 ${s.votes_up || 0}</button>
+                    <button onclick="voteSignal(${s.id}, 'down')" style="padding:3px 8px;border:1px solid #e74c3c;border-radius:4px;background:white;cursor:pointer;">-1 ${s.votes_down || 0}</button>
+                    <button onclick="editSignal(${s.id}, '${escapeHtml((s.description || '').replace(/'/g, "\\'"))}')" style="padding:3px 8px;border:1px solid #3498db;border-radius:4px;background:white;cursor:pointer;">Modifier</button>
+                    <button onclick="deleteSignal(${s.id})" style="padding:3px 8px;border:1px solid #e74c3c;border-radius:4px;background:white;color:#e74c3c;cursor:pointer;">Supprimer</button>
+                </div>
             `);
         markers.signals.push(marker);
-        if (document.getElementById('layer-signals').checked) {
+        if (document.getElementById('layer-signals') && document.getElementById('layer-signals').checked) {
             marker.addTo(map);
         }
     });
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function getTypeLabel(type) {
     const labels = {
-        attente: '⏱️ Temps d\'attente',
-        fermeture: '🚫 Fermeture',
-        satisfaction: '⭐ Satisfaction',
-        manque: '❌ Manque de soins'
+        attente: 'Temps d\'attente',
+        fermeture: 'Fermeture',
+        satisfaction: 'Satisfaction',
+        manque: 'Manque de soins',
+        manque_soins: 'Manque de soins'
     };
     return labels[type] || type;
 }
@@ -335,6 +410,31 @@ window.voteSignal = async (id, vote) => {
     }
 };
 
+window.editSignal = async (id, currentDesc) => {
+    const newDesc = prompt('Modifier la description:', currentDesc);
+    if (newDesc === null) return;
+    try {
+        await fetch(`${API}/api/signalements/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description: newDesc })
+        });
+        loadData();
+    } catch (err) {
+        alert('Erreur de modification');
+    }
+};
+
+window.deleteSignal = async (id) => {
+    if (!confirm('Supprimer ce signalement ?')) return;
+    try {
+        await fetch(`${API}/api/signalements/${id}`, { method: 'DELETE' });
+        loadData();
+    } catch (err) {
+        alert('Erreur de suppression');
+    }
+};
+
 async function loadStats() {
     try {
         const res = await fetch(`${API}/api/stats/dashboard`);
@@ -351,75 +451,40 @@ async function loadStats() {
         renderBarChart('chart-depts', data.top_departements_signalements, 'departement', 'total', ['#3498db']);
 
         const recentList = document.getElementById('recent-list');
-        recentList.innerHTML = data.signalements_recents.map(s => `
-            <div class="signal-item">
-                <div class="signal-type-icon ${s.type}">${getTypeIcon(s.type)}</div>
-                <div class="signal-details">
-                    <div class="signal-desc">${s.description || getTypeLabel(s.type)}</div>
-                    <div class="signal-meta">${s.commune || ''} · ${formatDate(s.date_signalement)}</div>
+        if (recentList) {
+            recentList.innerHTML = data.signalements_recents.map(s => `
+                <div class="signal-item">
+                    <div class="signal-type-icon ${s.type}">${getTypeIcon(s.type)}</div>
+                    <div class="signal-details">
+                        <div class="signal-desc">${escapeHtml(s.description || getTypeLabel(s.type))}</div>
+                        <div class="signal-meta">${escapeHtml(s.commune || '')} · ${formatDate(s.date_signalement)}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
-
+            `).join('');
+        }
     } catch (err) {
         console.error('Stats error:', err);
     }
 }
 
 function getTypeIcon(type) {
-    const icons = { attente: '⏱️', fermeture: '🚫', satisfaction: '⭐', manque: '❌' };
-    return icons[type] || '📋';
+    const icons = { attente: 'Attente', fermeture: 'Ferme', satisfaction: 'Satisfait', manque: 'Manque', manque_soins: 'Manque' };
+    return icons[type] || '?';
 }
 
 function renderBarChart(containerId, data, labelKey, valueKey, colors) {
     const container = document.getElementById(containerId);
+    if (!container) return;
     if (!data.length) {
-        container.innerHTML = '<p class="loading">Aucune donnée</p>';
+        container.innerHTML = '<p class="loading">Aucune donnee</p>';
         return;
     }
 
     const max = Math.max(...data.map(d => d[valueKey]));
     container.innerHTML = `<div class="bar-chart">${data.slice(0, 10).map((d, i) => `
         <div class="bar-row">
-            <div class="bar-label">${d[labelKey] || 'N/A'}</div>
+            <div class="bar-label">${escapeHtml(d[labelKey] || 'N/A')}</div>
             <div class="bar-fill" style="width:${(d[valueKey] / max * 100)}%;background:${colors[i % colors.length]}">${d[valueKey]}</div>
         </div>
     `).join('')}</div>`;
-}
-
-async function loadDashboard() {
-    try {
-        const res = await fetch(`${API}/api/stats/dashboard`);
-        const data = await res.json();
-
-        document.getElementById('dashboard-content').innerHTML = `
-            <div class="dash-card">
-                <h3>Total établissements</h3>
-                <div class="value">${data.resume.etablissements.toLocaleString()}</div>
-            </div>
-            <div class="dash-card">
-                <h3>Total professionnels</h3>
-                <div class="value">${data.resume.professionnels.toLocaleString()}</div>
-            </div>
-            <div class="dash-card">
-                <h3>Total signalements</h3>
-                <div class="value">${data.resume.signalements.toLocaleString()}</div>
-            </div>
-            <div class="dash-card">
-                <h3>Types d'établissements</h3>
-                <div>${data.types_etablissements.map(e => `<div>${e.type}: <strong>${e.total}</strong></div>`).join('')}</div>
-            </div>
-            <div class="dash-card">
-                <h3>Professions représentées</h3>
-                <div>${data.professions_top.map(p => `<div>${p.profession}: <strong>${p.total}</strong></div>`).join('')}</div>
-            </div>
-            <div class="dash-card">
-                <h3>Export CSV</h3>
-                <p style="font-size:0.85rem;color:#95a5a6;">Téléchargez les données agrégées pour vos analyses</p>
-                <button onclick="alert('Export en cours de développement')" class="btn-secondary" style="margin-top:0.5rem;">📥 Télécharger</button>
-            </div>
-        `;
-    } catch (err) {
-        document.getElementById('dashboard-content').innerHTML = '<p class="loading">Erreur de chargement</p>';
-    }
 }

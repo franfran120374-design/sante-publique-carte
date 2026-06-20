@@ -645,3 +645,32 @@ footer a {
 .marker-zone {
     background: var(--danger);
 }
+
+.search-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.search-item:hover {
+    background: #f8f9fa;
+}
+
+.search-item span {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.search-item strong {
+    display: block;
+    font-size: 13px;
+}
+
+.search-item small {
+    color: #888;
+    font-size: 11px;
+}

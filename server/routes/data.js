@@ -5,9 +5,10 @@ module.exports = function(db) {
 
     router.get('/etablissements', async (req, res) => {
         try {
-            const { lat, lng, rayon = 25, type, departement, limit = 200 } = req.query;
+            const { lat, lng, rayon = 50, type, departement, limit = 500 } = req.query;
             let query = 'SELECT * FROM etablissements WHERE 1=1';
             const params = [];
+            let idx = 1;
 
             if (lat && lng) {
                 const latNum = parseFloat(lat);
@@ -17,33 +18,39 @@ module.exports = function(db) {
                 const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
 
                 if (db.isPG) {
-                    query += ` AND latitude BETWEEN $${params.length + 1} AND $${params.length + 2} AND longitude BETWEEN $${params.length + 3} AND $${params.length + 4}`;
+                    query += ` AND latitude BETWEEN $${idx} AND $${idx+1} AND longitude BETWEEN $${idx+2} AND $${idx+3}`;
+                    params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    idx += 4;
                 } else {
                     query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                    params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
                 }
-                params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
             }
 
             if (type) {
                 if (db.isPG) {
-                    query += ` AND type LIKE $${params.length + 1}`;
+                    query += ` AND type ILIKE $${idx}`;
+                    params.push(`%${type}%`);
+                    idx++;
                 } else {
                     query += ' AND type LIKE ?';
+                    params.push(`%${type}%`);
                 }
-                params.push(`%${type}%`);
             }
 
             if (departement) {
                 if (db.isPG) {
-                    query += ` AND departement = $${params.length + 1}`;
+                    query += ` AND departement = $${idx}`;
+                    params.push(departement);
+                    idx++;
                 } else {
                     query += ' AND departement = ?';
+                    params.push(departement);
                 }
-                params.push(departement);
             }
 
             if (db.isPG) {
-                query += ` LIMIT $${params.length + 1}`;
+                query += ` LIMIT $${idx}`;
             } else {
                 query += ' LIMIT ?';
             }
@@ -59,9 +66,10 @@ module.exports = function(db) {
 
     router.get('/professionnels', async (req, res) => {
         try {
-            const { lat, lng, rayon = 25, profession, departement, secteur, limit = 200 } = req.query;
+            const { lat, lng, rayon = 50, profession, departement, secteur, limit = 500 } = req.query;
             let query = 'SELECT * FROM professionnels WHERE 1=1';
             const params = [];
+            let idx = 1;
 
             if (lat && lng) {
                 const latNum = parseFloat(lat);
@@ -71,42 +79,50 @@ module.exports = function(db) {
                 const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
 
                 if (db.isPG) {
-                    query += ` AND latitude BETWEEN $${params.length + 1} AND $${params.length + 2} AND longitude BETWEEN $${params.length + 3} AND $${params.length + 4}`;
+                    query += ` AND latitude BETWEEN $${idx} AND $${idx+1} AND longitude BETWEEN $${idx+2} AND $${idx+3}`;
+                    params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    idx += 4;
                 } else {
                     query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                    params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
                 }
-                params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
             }
 
             if (profession) {
                 if (db.isPG) {
-                    query += ` AND profession LIKE $${params.length + 1}`;
+                    query += ` AND (profession ILIKE $${idx} OR specialite ILIKE $${idx})`;
+                    params.push(`%${profession}%`);
+                    idx++;
                 } else {
-                    query += ' AND profession LIKE ?';
+                    query += ' AND (profession LIKE ? OR specialite LIKE ?)';
+                    params.push(`%${profession}%`, `%${profession}%`);
                 }
-                params.push(`%${profession}%`);
             }
 
             if (departement) {
                 if (db.isPG) {
-                    query += ` AND departement = $${params.length + 1}`;
+                    query += ` AND departement = $${idx}`;
+                    params.push(departement);
+                    idx++;
                 } else {
                     query += ' AND departement = ?';
+                    params.push(departement);
                 }
-                params.push(departement);
             }
 
             if (secteur) {
                 if (db.isPG) {
-                    query += ` AND secteur = $${params.length + 1}`;
+                    query += ` AND secteur = $${idx}`;
+                    params.push(secteur);
+                    idx++;
                 } else {
                     query += ' AND secteur = ?';
+                    params.push(secteur);
                 }
-                params.push(secteur);
             }
 
             if (db.isPG) {
-                query += ` LIMIT $${params.length + 1}`;
+                query += ` LIMIT $${idx}`;
             } else {
                 query += ' LIMIT ?';
             }
@@ -122,66 +138,68 @@ module.exports = function(db) {
 
     router.get('/recherche', async (req, res) => {
         try {
-            const { q, lat, lng, rayon = 50 } = req.query;
+            const { q, lat, lng, rayon = 200 } = req.query;
 
-            if (!q) {
-                return res.status(400).json({ error: 'Paramètre q requis' });
+            if (!q || q.trim().length < 2) {
+                return res.status(400).json({ error: 'Paramètre q requis (min 2 caractères)' });
             }
 
-            const searchTerm = `%${q}%`;
-            let params = [];
+            const searchTerm = `%${q.trim()}%`;
+            let results = [];
 
-            let query = `
-                SELECT 'etablissement' as source, id, nom as name, type as categorie, adresse, code_postal, commune, latitude, longitude
-                FROM etablissements
-                WHERE nom LIKE $1 OR type LIKE $2 OR commune LIKE $3
-            `;
-            params = [searchTerm, searchTerm, searchTerm];
+            try {
+                let query = `SELECT 'etablissement' as source, id, nom as name, type as categorie, adresse, code_postal, commune, departement, latitude, longitude FROM etablissements WHERE nom ILIKE $1 OR type ILIKE $2 OR commune ILIKE $3 OR adresse ILIKE $4`;
+                let params = [searchTerm, searchTerm, searchTerm, searchTerm];
+                let idx = 5;
 
-            if (lat && lng) {
-                const latNum = parseFloat(lat);
-                const lngNum = parseFloat(lng);
-                const rayonKm = parseFloat(rayon);
-                const latDelta = rayonKm / 111;
-                const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
-
-                if (db.isPG) {
-                    query += ` AND latitude BETWEEN $${params.length + 1} AND $${params.length + 2} AND longitude BETWEEN $${params.length + 3} AND $${params.length + 4}`;
-                } else {
-                    query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                if (lat && lng) {
+                    const latNum = parseFloat(lat);
+                    const lngNum = parseFloat(lng);
+                    const rayonKm = parseFloat(rayon);
+                    const latDelta = rayonKm / 111;
+                    const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
+                    if (db.isPG) {
+                        query += ` AND latitude BETWEEN $${idx} AND $${idx+1} AND longitude BETWEEN $${idx+2} AND $${idx+3}`;
+                        params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    } else {
+                        query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                        params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    }
                 }
-                params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                query += ' LIMIT 25';
+                const etabs = await db.prepare(query).all(...params);
+                results = results.concat(etabs);
+            } catch (e) {
+                console.error('Search etabs error:', e.message);
             }
 
-            query += ' UNION ALL ';
+            try {
+                let query = `SELECT 'professionnel' as source, id, nom || ' ' || COALESCE(prenom, '') as name, profession as categorie, adresse, code_postal, commune, departement, latitude, longitude FROM professionnels WHERE nom ILIKE $1 OR profession ILIKE $2 OR specialite ILIKE $3 OR commune ILIKE $4`;
+                let params = [searchTerm, searchTerm, searchTerm, searchTerm];
+                let idx = 5;
 
-            const profStartIdx = params.length + 1;
-            query += `
-                SELECT 'professionnel' as source, id, nom || ' ' || prenom as name, profession as categorie, adresse, code_postal, commune, latitude, longitude
-                FROM professionnels
-                WHERE nom LIKE $${profStartIdx} OR profession LIKE $${profStartIdx + 1} OR specialite LIKE $${profStartIdx + 2} OR commune LIKE $${profStartIdx + 3}
-            `;
-            params.push(searchTerm, searchTerm, searchTerm, searchTerm);
-
-            if (lat && lng) {
-                const latNum = parseFloat(lat);
-                const lngNum = parseFloat(lng);
-                const rayonKm = parseFloat(rayon);
-                const latDelta = rayonKm / 111;
-                const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
-
-                if (db.isPG) {
-                    query += ` AND latitude BETWEEN $${params.length + 1} AND $${params.length + 2} AND longitude BETWEEN $${params.length + 3} AND $${params.length + 4}`;
-                } else {
-                    query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                if (lat && lng) {
+                    const latNum = parseFloat(lat);
+                    const lngNum = parseFloat(lng);
+                    const rayonKm = parseFloat(rayon);
+                    const latDelta = rayonKm / 111;
+                    const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
+                    if (db.isPG) {
+                        query += ` AND latitude BETWEEN $${idx} AND $${idx+1} AND longitude BETWEEN $${idx+2} AND $${idx+3}`;
+                        params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    } else {
+                        query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                        params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    }
                 }
-                params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                query += ' LIMIT 25';
+                const profs = await db.prepare(query).all(...params);
+                results = results.concat(profs);
+            } catch (e) {
+                console.error('Search profs error:', e.message);
             }
 
-            query += ' LIMIT 50';
-
-            const rows = await db.prepare(query).all(...params);
-            res.json(rows);
+            res.json(results);
         } catch (err) {
             console.error('Erreur recherche:', err);
             res.status(500).json({ error: 'Erreur serveur' });

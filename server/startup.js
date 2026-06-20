@@ -11,11 +11,10 @@ function setImportStatus(status, message, counts = {}) {
     console.log(`[IMPORT] ${status}: ${message} (mode: ${data.mode})`);
 }
 
-setImportStatus('starting', 'Démarrage du serveur...');
+setImportStatus('starting', 'Démarrage...');
 
-console.log('=== SantéPublique.carte - Démarrage ===');
+console.log('=== SantéPublique.carte ===');
 console.log(`Mode: ${isPostgres ? 'PostgreSQL' : 'SQLite (local)'}`);
-console.log(`DATABASE_URL: ${isPostgres ? 'défini (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NON DÉFINI'}`);
 
 async function start() {
     if (isPostgres) {
@@ -46,49 +45,48 @@ async function start() {
                 auteur_pseudo TEXT, date_signalement TIMESTAMP DEFAULT NOW(),
                 verified INTEGER DEFAULT 0, votes_up INTEGER DEFAULT 0, votes_down INTEGER DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS zones_prioritaires (
+                id SERIAL PRIMARY KEY, nom TEXT, code_insee TEXT, departement TEXT,
+                region TEXT, type_zone TEXT DEFAULT 'rouge', population INTEGER
+            );
             CREATE INDEX IF NOT EXISTS idx_etablissements_coords ON etablissements(latitude, longitude);
             CREATE INDEX IF NOT EXISTS idx_etablissements_dept ON etablissements(departement);
             CREATE INDEX IF NOT EXISTS idx_professionnels_coords ON professionnels(latitude, longitude);
             CREATE INDEX IF NOT EXISTS idx_professionnels_dept ON professionnels(departement);
+            CREATE INDEX IF NOT EXISTS idx_signalements_coords ON signalements(latitude, longitude);
         `);
 
         const result = await pool.query('SELECT COUNT(*) as c FROM etablissements');
         const count = parseInt(result.rows[0].c);
-        const profsResult = await pool.query('SELECT COUNT(*) as c FROM professionnels');
-        const profsCount = parseInt(profsResult.rows[0].c);
         await pool.end();
 
-        if (count === 0 && profsCount === 0) {
-            setImportStatus('pending', 'Base PostgreSQL vide - import en arrière-plan...');
-            const logFile = path.join(__dirname, 'import.log');
+        if (count === 0) {
+            setImportStatus('pending', 'Base vide, seed des données...');
+            const logFile = path.join(__dirname, 'seed.log');
             const logStream = fs.createWriteStream(logFile, { flags: 'a' });
-            const importProc = spawn('node', ['server/scripts/import-pg.js'], {
+            const seedProc = spawn('node', ['server/scripts/seed-pg.js'], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 detached: true,
                 env: process.env,
                 cwd: path.join(__dirname, '..')
             });
-            importProc.stdout.pipe(logStream);
-            importProc.stderr.pipe(logStream);
-            importProc.unref();
-            importProc.on('exit', (code) => {
+            seedProc.stdout.pipe(logStream);
+            seedProc.stderr.pipe(logStream);
+            seedProc.unref();
+            seedProc.on('exit', (code) => {
                 if (code === 0) {
-                    setImportStatus('done', 'Import terminé avec succès');
+                    setImportStatus('done', 'Données chargées');
                 } else {
-                    setImportStatus('error', `Import échoué (code ${code}) - vérifie import.log`);
+                    setImportStatus('error', `Seed échoué (code ${code})`);
                 }
             });
-            console.log(`Import lancé en arrière-plan (PID: ${importProc.pid})`);
         } else {
-            setImportStatus('done', 'Base PostgreSQL déjà chargée', { etablissements: count, professionnels: profsCount });
-            console.log(`Base chargée: ${count} établissements, ${profsCount} professionnels`);
+            setImportStatus('done', 'Base déjà chargée', { etablissements: count });
         }
     } else {
-        console.log('Pas de DATABASE_URL - mode SQLite local');
-        setImportStatus('done', 'Mode SQLite local (pas de données PostgreSQL)');
+        setImportStatus('done', 'Mode SQLite local');
     }
 
-    // Start server immediately
     console.log('Démarrage du serveur...');
     const server = spawn('node', ['server/server.js'], {
         stdio: 'inherit',
@@ -107,7 +105,7 @@ async function start() {
 }
 
 start().catch(err => {
-    setImportStatus('error', `Erreur fatale: ${err.message}`);
+    setImportStatus('error', `Erreur: ${err.message}`);
     console.error('Erreur fatale:', err);
     process.exit(1);
 });

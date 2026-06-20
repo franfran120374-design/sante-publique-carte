@@ -8,6 +8,7 @@ module.exports = function(db) {
             const { lat, lng, rayon = 50, type, limit = 100 } = req.query;
             let query = 'SELECT * FROM signalements WHERE 1=1';
             const params = [];
+            let idx = 1;
 
             if (lat && lng) {
                 const latNum = parseFloat(lat);
@@ -17,24 +18,28 @@ module.exports = function(db) {
                 const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
 
                 if (db.isPG) {
-                    query += ` AND latitude BETWEEN $${params.length + 1} AND $${params.length + 2} AND longitude BETWEEN $${params.length + 3} AND $${params.length + 4}`;
+                    query += ` AND latitude BETWEEN $${idx} AND $${idx+1} AND longitude BETWEEN $${idx+2} AND $${idx+3}`;
+                    params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+                    idx += 4;
                 } else {
                     query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                    params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
                 }
-                params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
             }
 
             if (type) {
                 if (db.isPG) {
-                    query += ` AND type = $${params.length + 1}`;
+                    query += ` AND type = $${idx}`;
+                    params.push(type);
+                    idx++;
                 } else {
                     query += ' AND type = ?';
+                    params.push(type);
                 }
-                params.push(type);
             }
 
             if (db.isPG) {
-                query += ` ORDER BY date_signalement DESC LIMIT $${params.length + 1}`;
+                query += ` ORDER BY date_signalement DESC LIMIT $${idx}`;
             } else {
                 query += ' ORDER BY date_signalement DESC LIMIT ?';
             }
@@ -71,6 +76,54 @@ module.exports = function(db) {
             res.json({ id: result.lastInsertRowid || result.changes, message: 'Signalement créé' });
         } catch (err) {
             console.error('Erreur création signalement:', err);
+            res.status(500).json({ error: 'Erreur serveur' });
+        }
+    });
+
+    router.put('/signalements/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { type, description, duree_attente_min } = req.body;
+
+            let query, params;
+            if (db.isPG) {
+                query = `UPDATE signalements SET type = COALESCE($1, type), description = COALESCE($2, description), duree_attente_min = COALESCE($3, duree_attente_min) WHERE id = $4`;
+                params = [type || null, description || null, duree_attente_min || null, id];
+            } else {
+                query = `UPDATE signalements SET type = COALESCE(?, type), description = COALESCE(?, description), duree_attente_min = COALESCE(?, duree_attente_min) WHERE id = ?`;
+                params = [type || null, description || null, duree_attente_min || null, id];
+            }
+
+            const result = await db.prepare(query).run(...params);
+            if (result.changes === 0) {
+                return res.status(404).json({ error: 'Signalement non trouvé' });
+            }
+            res.json({ message: 'Signalement modifié' });
+        } catch (err) {
+            console.error('Erreur modification signalement:', err);
+            res.status(500).json({ error: 'Erreur serveur' });
+        }
+    });
+
+    router.delete('/signalements/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            let query, params;
+            if (db.isPG) {
+                query = 'DELETE FROM signalements WHERE id = $1';
+                params = [id];
+            } else {
+                query = 'DELETE FROM signalements WHERE id = ?';
+                params = [id];
+            }
+
+            const result = await db.prepare(query).run(...params);
+            if (result.changes === 0) {
+                return res.status(404).json({ error: 'Signalement non trouvé' });
+            }
+            res.json({ message: 'Signalement supprimé' });
+        } catch (err) {
+            console.error('Erreur suppression signalement:', err);
             res.status(500).json({ error: 'Erreur serveur' });
         }
     });
