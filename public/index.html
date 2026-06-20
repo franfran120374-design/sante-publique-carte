@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SantéPublique.carte - Cartographie participative de l'accès aux soins</title>
+    <meta name="description" content="Cartographie participative des déserts médicaux en France. Signalez, consultez, agissez.">
+    <meta name="theme-color" content="#e74c3c">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header id="main-header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">🏥</span>
+                <h1>SantéPublique<span class="accent">.carte</span></h1>
+            </div>
+            <nav class="main-nav">
+                <button class="nav-btn active" data-view="map">Carte</button>
+                <button class="nav-btn" data-view="signaler">Signaler</button>
+                <button class="nav-btn" data-view="stats">Stats</button>
+                <button class="nav-btn" data-view="dashboard">Institutions</button>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <!-- Vue Carte -->
+        <section id="view-map" class="view active">
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-controls">
+                    <div class="search-box">
+                        <input type="text" id="search-input" placeholder="Rechercher une ville, un médecin...">
+                        <button id="search-btn" aria-label="Rechercher">🔍</button>
+                    </div>
+                    <div class="layer-controls">
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="layer-etabs" checked>
+                            <span class="layer-dot etabs"></span>
+                            Établissements
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="layer-profs" checked>
+                            <span class="layer-dot profs"></span>
+                            Professionnels
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="layer-signals" checked>
+                            <span class="layer-dot signals"></span>
+                            Signalements
+                        </label>
+                        <label class="layer-toggle">
+                            <input type="checkbox" id="layer-zones">
+                            <span class="layer-dot zones"></span>
+                            Zones prioritaires
+                        </label>
+                    </div>
+                    <button id="locate-btn" class="fab" aria-label="Ma position">📍</button>
+                </div>
+                <div class="map-info" id="map-info">
+                    <span id="count-etabs">0</span> établissements ·
+                    <span id="count-profs">0</span> professionnels ·
+                    <span id="count-signals">0</span> signalements
+                </div>
+            </div>
+        </section>
+
+        <!-- Vue Signaler -->
+        <section id="view-signaler" class="view">
+            <div class="form-container">
+                <h2>📋 Signaler une situation</h2>
+                <p class="subtitle">Votre signalement aide les autres citoyens et les décideurs</p>
+
+                <form id="signal-form">
+                    <div class="form-group">
+                        <label>Type de signal</label>
+                        <div class="type-selector">
+                            <button type="button" class="type-btn" data-type="attente">
+                                <span class="type-icon">⏱️</span>
+                                Temps d'attente
+                            </button>
+                            <button type="button" class="type-btn" data-type="fermeture">
+                                <span class="type-icon">🚫</span>
+                                Fermeture
+                            </button>
+                            <button type="button" class="type-btn" data-type="satisfaction">
+                                <span class="type-icon">⭐</span>
+                                Satisfaction
+                            </button>
+                            <button type="button" class="type-btn" data-type="manque">
+                                <span class="type-icon">❌</span>
+                                Manque de soins
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="duree-group" style="display:none">
+                        <label for="duree">Durée d'attente (minutes)</label>
+                        <input type="number" id="duree" min="1" max="1440" placeholder="Ex: 45">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" rows="3" placeholder="Décrivez la situation..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="pseudo">Pseudo (optionnel)</label>
+                        <input type="text" id="pseudo" placeholder="Anonyme">
+                    </div>
+
+                    <div class="form-group">
+                        <label>📍 Position</label>
+                        <div class="location-inputs">
+                            <input type="number" id="signal-lat" step="any" placeholder="Latitude" readonly>
+                            <input type="number" id="signal-lng" step="any" placeholder="Longitude" readonly>
+                            <button type="button" id="get-location-btn" class="btn-secondary">Géolocaliser</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary" id="submit-signal">
+                        Envoyer le signalement
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Vue Stats -->
+        <section id="view-stats" class="view">
+            <div class="stats-container">
+                <h2>📊 Statistiques en temps réel</h2>
+                <div class="stats-grid" id="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-etabs">-</div>
+                        <div class="stat-label">Établissements</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-profs">-</div>
+                        <div class="stat-label">Professionnels</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-signals">-</div>
+                        <div class="stat-label">Signalements</div>
+                    </div>
+                    <div class="stat-card accent">
+                        <div class="stat-value" id="stat-wait">-</div>
+                        <div class="stat-label">Attente moy. (min)</div>
+                    </div>
+                </div>
+                <div class="charts-section">
+                    <h3>Signalements par type</h3>
+                    <div id="chart-types" class="chart"></div>
+                </div>
+                <div class="charts-section">
+                    <h3>Top départements signalés</h3>
+                    <div id="chart-depts" class="chart"></div>
+                </div>
+                <div class="recent-signals">
+                    <h3>Signalements récents</h3>
+                    <div id="recent-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Vue Dashboard Institutions -->
+        <section id="view-dashboard" class="view">
+            <div class="dashboard-container">
+                <h2>🏛️ Espace Institutions</h2>
+                <p class="subtitle">Données agrégées pour les ARS, collectivités et décideurs</p>
+                <div class="dashboard-grid" id="dashboard-content">
+                    <p class="placeholder">Chargement des données...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Détail -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>SantéPublique.carte — Données ouvertes + Signalements citoyens</p>
+        <p class="sources">Sources : <a href="https://www.data.gouv.fr" target="_blank">data.gouv.fr</a> · FINESS · Ameli · DREES</p>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

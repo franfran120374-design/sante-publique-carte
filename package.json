@@ -1,0 +1,19 @@
+{
+  "name": "sante-publique-carte",
+  "version": "1.0.0",
+  "description": "Cartographie participative des déserts médicaux en France",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "import-finess": "node server/scripts/import-finess.js",
+    "import-ameli": "node server/scripts/import-ameli.js",
+    "seed": "node server/db/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "node-fetch": "^2.7.0"
+  }
+}
