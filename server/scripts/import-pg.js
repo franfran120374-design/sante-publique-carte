@@ -1,7 +1,14 @@
 const { Pool } = require('pg');
+const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+
+const DOWNLOAD_DIR = path.join(__dirname, '..', 'downloads');
+if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+
+const FINESS_URL = 'https://static.data.gouv.fr/resources/finess-extraction-du-fichier-des-etablissements/20260512-091308/etalab-cs1100502-stock-20260512-0339.csv';
+const AMELI_PS_URL = 'https://static.data.gouv.fr/resources/annuaire-sante-ameli/20260615-004155/liste-ps-20260615-023046.csv';
 
 const DEPT_COORDS = {
     '01':{lat:45.75,lng:5.07},'02':{lat:49.56,lng:3.58},'03':{lat:46.34,lng:3.42},
@@ -38,9 +45,28 @@ const DEPT_COORDS = {
     '95':{lat:49.05,lng:2.10},'2A':{lat:41.92,lng:8.74},'2B':{lat:42.50,lng:9.25},
 };
 
+async function downloadFile(url, filename) {
+    const filepath = path.join(DOWNLOAD_DIR, filename);
+    if (fs.existsSync(filepath)) {
+        console.log(`  ${filename} déjà téléchargé (${(fs.statSync(filepath).size / 1024 / 1024).toFixed(1)} MB)`);
+        return filepath;
+    }
+    console.log(`  Téléchargement de ${filename}...`);
+    const res = await fetch(url, { redirect: 'follow', timeout: 120000 });
+    if (!res.ok) throw new Error(`Erreur téléchargement ${url}: ${res.status}`);
+    const fileStream = fs.createWriteStream(filepath);
+    await new Promise((resolve, reject) => {
+        res.body.pipe(fileStream);
+        res.body.on('error', reject);
+        fileStream.on('finish', resolve);
+    });
+    console.log(`  ${filename} téléchargé (${(fs.statSync(filepath).size / 1024 / 1024).toFixed(1)} MB)`);
+    return filepath;
+}
+
 async function importToPostgres() {
     if (!process.env.DATABASE_URL) {
-        console.error('DATABASE_URL non défini. Impossible d\'importer dans PostgreSQL.');
+        console.error('DATABASE_URL non défini.');
         process.exit(1);
     }
 
@@ -77,104 +103,95 @@ async function importToPostgres() {
         CREATE INDEX IF NOT EXISTS idx_professionnels_dept ON professionnels(departement);
     `);
 
+    // Download CSV files
+    console.log('\n=== TÉLÉCHARGEMENT ===');
+    const finessPath = await downloadFile(FINESS_URL, 'finess.csv');
+    const ameliPath = await downloadFile(AMELI_PS_URL, 'ameli-ps.csv');
+
     // Import FINESS
     console.log('\n=== IMPORT FINESS ===');
-    const finessPath = path.join(__dirname, '..', 'downloads', 'finess.csv');
-    if (fs.existsSync(finessPath)) {
-        let imported = 0;
-        const rl = readline.createInterface({ input: fs.createReadStream(finessPath, {encoding:'utf8'}), crlfDelay: Infinity });
-        let batch = [];
+    let imported = 0;
+    const rl1 = readline.createInterface({ input: fs.createReadStream(finessPath, {encoding:'utf8'}), crlfDelay: Infinity });
+    let batch = [];
 
-        for await (const line of rl) {
-            const c = line.split(';');
-            if (c.length < 20 || c[0] !== 'structureet') continue;
+    for await (const line of rl1) {
+        const c = line.split(';');
+        if (c.length < 20 || c[0] !== 'structureet') continue;
 
-            const id = c[1];
-            const nom = c[3] || c[4] || '';
-            if (!id || !nom) continue;
+        const id = c[1];
+        const nom = c[3] || c[4] || '';
+        if (!id || !nom) continue;
 
-            const type = c[19] || '';
-            const adresse = [c[7], c[8], c[9]].filter(Boolean).join(' ');
-            const codePostalCommune = c[15] || '';
-            const match = codePostalCommune.match(/^(\d{5})\s+(.+)/);
-            const codePostal = match ? match[1] : (c[12] || '');
-            const commune = match ? match[2] : '';
-            const departement = codePostal.substring(0, 2);
-            const telephone = c[16] || c[17] || '';
-            const coords = DEPT_COORDS[departement] || {lat:46.60, lng:1.89};
-            const jitter = () => (Math.random() - 0.5) * 0.02;
+        const type = c[19] || '';
+        const adresse = [c[7], c[8], c[9]].filter(Boolean).join(' ');
+        const codePostalCommune = c[15] || '';
+        const match = codePostalCommune.match(/^(\d{5})\s+(.+)/);
+        const codePostal = match ? match[1] : (c[12] || '');
+        const commune = match ? match[2] : '';
+        const departement = codePostal.substring(0, 2);
+        const telephone = c[16] || c[17] || '';
+        const coords = DEPT_COORDS[departement] || {lat:46.60, lng:1.89};
+        const jitter = () => (Math.random() - 0.5) * 0.02;
 
-            batch.push([id, nom, type, adresse.trim(), codePostal, commune, departement, '', telephone, coords.lat + jitter(), coords.lng + jitter()]);
-            imported++;
+        batch.push([id, nom, type, adresse.trim(), codePostal, commune, departement, '', telephone, coords.lat + jitter(), coords.lng + jitter()]);
+        imported++;
 
-            if (batch.length >= 5000) {
-                const values = batch.map((_, i) => `($${i*11+1},$${i*11+2},$${i*11+3},$${i*11+4},$${i*11+5},$${i*11+6},$${i*11+7},$${i*11+8},$${i*11+9},$${i*11+10},$${i*11+11})`).join(',');
-                const flatParams = batch.flat();
-                await pool.query(`INSERT INTO etablissements (id,nom,type,adresse,code_postal,commune,departement,region,telephone,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, flatParams);
-                process.stdout.write(`\r${imported} importés...`);
-                batch = [];
-            }
-        }
-
-        if (batch.length > 0) {
+        if (batch.length >= 5000) {
             const values = batch.map((_, i) => `($${i*11+1},$${i*11+2},$${i*11+3},$${i*11+4},$${i*11+5},$${i*11+6},$${i*11+7},$${i*11+8},$${i*11+9},$${i*11+10},$${i*11+11})`).join(',');
-            const flatParams = batch.flat();
-            await pool.query(`INSERT INTO etablissements (id,nom,type,adresse,code_postal,commune,departement,region,telephone,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, flatParams);
+            await pool.query(`INSERT INTO etablissements (id,nom,type,adresse,code_postal,commune,departement,region,telephone,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, batch.flat());
+            process.stdout.write(`\rFINESS: ${imported} importés...`);
+            batch = [];
         }
-        console.log(`\nFINESS: ${imported} importés`);
-    } else {
-        console.log('Fichier FINESS non trouvé, import ignoré.');
     }
+
+    if (batch.length > 0) {
+        const values = batch.map((_, i) => `($${i*11+1},$${i*11+2},$${i*11+3},$${i*11+4},$${i*11+5},$${i*11+6},$${i*11+7},$${i*11+8},$${i*11+9},$${i*11+10},$${i*11+11})`).join(',');
+        await pool.query(`INSERT INTO etablissements (id,nom,type,adresse,code_postal,commune,departement,region,telephone,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, batch.flat());
+    }
+    console.log(`\nFINESS: ${imported} importés`);
 
     // Import Ameli
     console.log('\n=== IMPORT AMELI ===');
-    const ameliPath = path.join(__dirname, '..', 'downloads', 'ameli-ps.csv');
-    if (fs.existsSync(ameliPath)) {
-        let imported = 0;
-        const rl = readline.createInterface({ input: fs.createReadStream(ameliPath, {encoding:'utf8'}), crlfDelay: Infinity });
-        let batch = [];
+    let importedAmeli = 0;
+    const rl2 = readline.createInterface({ input: fs.createReadStream(ameliPath, {encoding:'utf8'}), crlfDelay: Infinity });
+    batch = [];
 
-        for await (const line of rl) {
-            const c = line.split(';');
-            if (c.length < 20) continue;
+    for await (const line of rl2) {
+        const c = line.split(';');
+        if (c.length < 20) continue;
 
-            const nom = (c[0] || '').replace(/"/g, '').trim();
-            const prenom = (c[1] || '').replace(/"/g, '').trim();
-            const specialite = (c[7] || '').replace(/"/g, '').trim();
-            const codePostal = (c[16] || '').replace(/"/g, '').trim();
-            const ville = (c[17] || '').replace(/"/g, '').trim();
-            const secteur = (c[21] || '').replace(/"/g, '').trim();
-            const carteVitale = (c[4] || '').replace(/"/g, '').trim();
-            const adresse = (c[13] || '').replace(/"/g, '').trim();
-            const departement = codePostal.substring(0, 2);
+        const nom = (c[0] || '').replace(/"/g, '').trim();
+        const prenom = (c[1] || '').replace(/"/g, '').trim();
+        const specialite = (c[7] || '').replace(/"/g, '').trim();
+        const codePostal = (c[16] || '').replace(/"/g, '').trim();
+        const ville = (c[17] || '').replace(/"/g, '').trim();
+        const secteur = (c[21] || '').replace(/"/g, '').trim();
+        const carteVitale = (c[4] || '').replace(/"/g, '').trim();
+        const adresse = (c[13] || '').replace(/"/g, '').trim();
+        const departement = codePostal.substring(0, 2);
 
-            if (!nom) continue;
+        if (!nom) continue;
 
-            const id = `AMELI-${imported + 1}`;
-            const coords = DEPT_COORDS[departement] || {lat:46.60, lng:1.89};
-            const jitter = () => (Math.random() - 0.5) * 0.02;
+        const id = `AMELI-${importedAmeli + 1}`;
+        const coords = DEPT_COORDS[departement] || {lat:46.60, lng:1.89};
+        const jitter = () => (Math.random() - 0.5) * 0.02;
 
-            batch.push([id, nom, prenom, specialite, specialite, secteur, carteVitale === 'true' ? 1 : 0, adresse, codePostal, ville, departement, coords.lat + jitter(), coords.lng + jitter()]);
-            imported++;
+        batch.push([id, nom, prenom, specialite, specialite, secteur, carteVitale === 'true' ? 1 : 0, adresse, codePostal, ville, departement, coords.lat + jitter(), coords.lng + jitter()]);
+        importedAmeli++;
 
-            if (batch.length >= 5000) {
-                const values = batch.map((_, i) => `($${i*13+1},$${i*13+2},$${i*13+3},$${i*13+4},$${i*13+5},$${i*13+6},$${i*13+7},$${i*13+8},$${i*13+9},$${i*13+10},$${i*13+11},$${i*13+12},$${i*13+13})`).join(',');
-                const flatParams = batch.flat();
-                await pool.query(`INSERT INTO professionnels (id,nom,prenom,profession,specialite,secteur,accepte_carte_vitale,adresse,code_postal,commune,departement,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, flatParams);
-                process.stdout.write(`\r${imported} importés...`);
-                batch = [];
-            }
-        }
-
-        if (batch.length > 0) {
+        if (batch.length >= 5000) {
             const values = batch.map((_, i) => `($${i*13+1},$${i*13+2},$${i*13+3},$${i*13+4},$${i*13+5},$${i*13+6},$${i*13+7},$${i*13+8},$${i*13+9},$${i*13+10},$${i*13+11},$${i*13+12},$${i*13+13})`).join(',');
-            const flatParams = batch.flat();
-            await pool.query(`INSERT INTO professionnels (id,nom,prenom,profession,specialite,secteur,accepte_carte_vitale,adresse,code_postal,commune,departement,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, flatParams);
+            await pool.query(`INSERT INTO professionnels (id,nom,prenom,profession,specialite,secteur,accepte_carte_vitale,adresse,code_postal,commune,departement,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, batch.flat());
+            process.stdout.write(`\rAmeli: ${importedAmeli} importés...`);
+            batch = [];
         }
-        console.log(`\nAmeli: ${imported} importés`);
-    } else {
-        console.log('Fichier Ameli non trouvé, import ignoré.');
     }
+
+    if (batch.length > 0) {
+        const values = batch.map((_, i) => `($${i*13+1},$${i*13+2},$${i*13+3},$${i*13+4},$${i*13+5},$${i*13+6},$${i*13+7},$${i*13+8},$${i*13+9},$${i*13+10},$${i*13+11},$${i*13+12},$${i*13+13})`).join(',');
+        await pool.query(`INSERT INTO professionnels (id,nom,prenom,profession,specialite,secteur,accepte_carte_vitale,adresse,code_postal,commune,departement,latitude,longitude) VALUES ${values} ON CONFLICT (id) DO NOTHING`, batch.flat());
+    }
+    console.log(`\nAmeli: ${importedAmeli} importés`);
 
     // Summary
     const etabsCount = (await pool.query('SELECT COUNT(*) as c FROM etablissements')).rows[0].c;
@@ -184,6 +201,7 @@ async function importToPostgres() {
     console.log(`Professionnels: ${profsCount}`);
 
     await pool.end();
+    console.log('Import terminé avec succès!');
 }
 
 importToPostgres().catch(err => {

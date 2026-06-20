@@ -11,7 +11,43 @@ document.addEventListener('DOMContentLoaded', () => {
     initLayers();
     loadData();
     getUserLocation();
+    pollImportStatus();
 });
+
+async function pollImportStatus() {
+    try {
+        const res = await fetch('/api/import-status');
+        const status = await res.json();
+        if (status.status === 'pending' || status.status === 'running') {
+            showImportBanner(status.message || 'Import des données en cours...');
+            setTimeout(pollImportStatus, 10000);
+        } else if (status.status === 'done') {
+            hideImportBanner();
+            loadData();
+        } else {
+            hideImportBanner();
+        }
+    } catch (e) {
+        hideImportBanner();
+    }
+}
+
+function showImportBanner(msg) {
+    let banner = document.getElementById('import-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'import-banner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#f59e0b;color:#000;text-align:center;padding:10px;z-index:10000;font-weight:bold;font-size:14px;';
+        document.body.prepend(banner);
+    }
+    banner.textContent = msg + ' — La carte se chargera automatiquement.';
+    banner.style.display = 'block';
+}
+
+function hideImportBanner() {
+    const banner = document.getElementById('import-banner');
+    if (banner) banner.style.display = 'none';
+}
 
 function initMap() {
     map = L.map('map').setView([userLat, userLng], 6);
