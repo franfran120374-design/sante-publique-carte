@@ -24,6 +24,11 @@ async function startServer() {
     app.use('/api/data', dataRoutes(db));
     app.use('/api/stats', statsRoutes(db));
 
+    if (db.isPG) {
+        const importRealRoutes = require('./routes/import-real');
+        app.use('/api/admin', importRealRoutes(db.pool));
+    }
+
     // Import status endpoint
     app.get('/api/import-status', (req, res) => {
         const statusFile = path.join(__dirname, 'import-status.json');
