@@ -41,8 +41,8 @@ const DEPT_COORDS = {
 
 function jitter() { return (Math.random() - 0.5) * 0.02; }
 
-const FINESS_URL = 'https://static.data.gouv.fr/resources/finess-extraction-du-fichier-des-etablissements/20260512-091308/etalab-cs1100502-stock-20260512-0339.csv';
-const AMELI_URL = 'https://static.data.gouv.fr/resources/annuaire-sante-ameli/20260615-004155/liste-ps-20260615-023046.csv';
+const FINESS_URL = 'https://www.data.gouv.fr/api/1/datasets/r/2ce43ade-8d2c-4d1d-81da-ca06c82abc68';
+const AMELI_URL = 'https://www.data.gouv.fr/api/1/datasets/r/432983b9-2e6f-473a-b35a-20403c300a5f';
 
 function setImportStatus(status, message, extra = {}) {
     const file = path.join(__dirname, '..', 'import-status.json');
@@ -66,9 +66,11 @@ module.exports = function(pool) {
         (async () => {
             try {
                 if (!source || source === 'finess') {
+                    await pool.query('DELETE FROM etablissements WHERE source = \'seed\'');
                     await importFINESS(pool);
                 }
                 if (!source || source === 'ameli') {
+                    await pool.query('DELETE FROM professionnels WHERE source = \'seed\'');
                     await importAmeli(pool);
                 }
                 const eCount = (await pool.query('SELECT COUNT(*) as c FROM etablissements')).rows[0].c;
@@ -85,10 +87,24 @@ module.exports = function(pool) {
     return router;
 };
 
+async function fetchWithRetry(url, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const res = await fetch(url, { redirect: 'follow', timeout: 600000 });
+            if (res.ok) return res;
+            console.log(`[RETRY ${i+1}] HTTP ${res.status} for ${url}`);
+        } catch (err) {
+            console.log(`[RETRY ${i+1}] ${err.message} for ${url}`);
+        }
+        await new Promise(r => setTimeout(r, 5000));
+    }
+    throw new Error(`Failed after ${retries} retries: ${url}`);
+}
+
 async function importFINESS(pool) {
     console.log('[IMPORT] FINESS: téléchargement...');
-    const res = await fetch(FINESS_URL, { redirect: 'follow', timeout: 300000 });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetchWithRetry(FINESS_URL);
+    console.log(`[IMPORT] FINESS: ${res.headers.get('content-length')} bytes`);
 
     let imported = 0, batch = [];
     const rl = readline.createInterface({ input: res.body, crlfDelay: Infinity });
@@ -125,8 +141,8 @@ async function importFINESS(pool) {
 
 async function importAmeli(pool) {
     console.log('[IMPORT] AMELI: téléchargement...');
-    const res = await fetch(AMELI_URL, { redirect: 'follow', timeout: 300000 });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetchWithRetry(AMELI_URL);
+    console.log(`[IMPORT] AMELI: ${res.headers.get('content-length')} bytes`);
 
     let imported = 0, batch = [], idx = 0;
     const rl = readline.createInterface({ input: res.body, crlfDelay: Infinity });
