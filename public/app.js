@@ -336,8 +336,8 @@ function getUserLocation() {
 async function loadData() {
     try {
         const [etabsRes, profsRes, signalsRes] = await Promise.all([
-            fetch(`${API}/api/data/etablissements?lat=${userLat}&lng=${userLng}&rayon=200&limit=500`),
-            fetch(`${API}/api/data/professionnels?lat=${userLat}&lng=${userLng}&rayon=200&limit=500`),
+            fetch(`${API}/api/data/etablissements?lat=${userLat}&lng=${userLng}&rayon=500&limit=5000`),
+            fetch(`${API}/api/data/professionnels?lat=${userLat}&lng=${userLng}&rayon=500&limit=5000`),
             fetch(`${API}/api/signalements?lat=${userLat}&lng=${userLng}&rayon=500`)
         ]);
 

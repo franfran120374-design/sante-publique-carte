@@ -1,14 +1,52 @@
 const express = require('express');
 
+const EXCLUDED_TYPES = [
+    'EHPAD', 'Etablissement d\'hébergement pour personnes âgées dépendantes',
+    'Résidence Sociale', 'Autre Résidence Sociale',
+    'Centre Hébergement', 'Centre Hébergement & Réinsertion Sociale', 'C.H.R.S.',
+    'Institut Médico-Educatif', 'I.M.E.',
+    'Centre Médico-Psycho-Pédagogique', 'C.M.P.P.',
+    'Maison d\'Accueil Spécialisée', 'M.A.S.',
+    'Service de prévention spécialisée',
+    'Service d\'Éducation Spéciale et de Soins à Domicile', 'S.E.S.S.A.D.',
+    'Centre d\'Action Sociale Protestant',
+    'Service de Soins Infirmiers A Domicile', 'S.S.I.A.D',
+    'Structure d\'Alternative à la dialyse',
+    'Structure Dispensatrice',
+    'Autre établissement ou service medico-social',
+    'Pension de Famille', 'Résidence Accueil',
+];
+
+const MEDICAL_TYPES = [
+    'Hôpital', 'CHU', 'CHR', 'Centre Hospitalier', 'Clinique', 'Etablissement de santé',
+    'Centre de santé', 'Polyclinique', 'C.M.P.', 'Centre Médico-Psychologique',
+    'Pharmacie', 'Officine',
+    'Laboratoire', 'Biologie médicale',
+    'Centre de radiologie', 'Imagerie médicale',
+    'Etablissement de santé privé',
+    'Centre de consultation',
+];
+
 module.exports = function(db) {
     const router = express.Router();
 
     router.get('/etablissements', async (req, res) => {
         try {
-            const { lat, lng, rayon = 50, type, departement, limit = 500 } = req.query;
+            const { lat, lng, rayon = 100, type, departement, limit = 2000 } = req.query;
             let query = 'SELECT * FROM etablissements WHERE 1=1';
             const params = [];
             let idx = 1;
+
+            const exclusionClauses = EXCLUDED_TYPES.map(t => {
+                if (db.isPG) {
+                    params.push(`%${t}%`);
+                    return `type NOT ILIKE $${idx++}`;
+                } else {
+                    params.push(`%${t}%`);
+                    return `type NOT LIKE ?`;
+                }
+            });
+            query += ` AND (${exclusionClauses.join(' AND ')})`;
 
             if (lat && lng) {
                 const latNum = parseFloat(lat);
@@ -59,14 +97,14 @@ module.exports = function(db) {
             const rows = await db.prepare(query).all(...params);
             res.json(rows);
         } catch (err) {
-            console.error('Erreur établissements:', err);
+            console.error('Erreur etablissements:', err);
             res.status(500).json({ error: 'Erreur serveur' });
         }
     });
 
     router.get('/professionnels', async (req, res) => {
         try {
-            const { lat, lng, rayon = 50, profession, departement, secteur, limit = 500 } = req.query;
+            const { lat, lng, rayon = 100, profession, departement, secteur, limit = 2000 } = req.query;
             let query = 'SELECT * FROM professionnels WHERE 1=1';
             const params = [];
             let idx = 1;
