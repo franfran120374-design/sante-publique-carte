@@ -497,9 +497,20 @@ function initSearch() {
 
             results.forEach(r => {
                 const icon = r.source === 'etablissement' ? '🏥' : '👨‍⚕️';
-                html += `<div class="search-item" onclick="zoomToResult(${r.latitude},${r.longitude})">
+                const typeBadge = r.categorie ? `<span style="background:${r.source === 'etablissement' ? '#3498db' : '#e67e22'};color:white;padding:1px 6px;border-radius:3px;font-size:10px">${escapeHtml(r.categorie)}</span>` : '';
+                const address = r.adresse ? `<br><small style="color:#666">📍 ${escapeHtml(r.adresse)}</small>` : '';
+                const phone = r.telephone ? `<br><small style="color:#3498db">📞 ${escapeHtml(r.telephone)}</small>` : '';
+                const dept = r.departement ? `<small style="color:#999"> · ${escapeHtml(r.departement)}</small>` : '';
+
+                html += `<div class="search-item" onclick="zoomToResult(${r.latitude},${r.longitude}, '${r.source}', '${escapeHtml(r.id)}')">
                     <span>${icon}</span>
-                    <div><strong>${r.name || ''}</strong><br><small>${r.categorie || ''} · ${r.commune || ''} ${r.code_postal || ''}</small></div>
+                    <div>
+                        <strong>${escapeHtml(r.name || '')}</strong>
+                        ${typeBadge}
+                        ${address}
+                        ${phone}
+                        <small>${escapeHtml(r.commune || '')} ${escapeHtml(r.code_postal || '')}${dept}</small>
+                    </div>
                 </div>`;
 
                 if (r.latitude && r.longitude) {
@@ -509,8 +520,15 @@ function initSearch() {
                         iconSize: [20, 20],
                         html: `<div style="width:20px;height:20px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:10px;color:white;">${r.source === 'etablissement' ? 'H' : 'D'}</div>`
                     });
+                    const markerData = {
+                        nom: r.name, prenom: r.prenom, type: r.categorie, profession: r.categorie,
+                        specialite: r.specialite, adresse: r.adresse, code_postal: r.code_postal,
+                        commune: r.commune, departement: r.departement, telephone: r.telephone,
+                        id: r.id, latitude: r.latitude, longitude: r.longitude,
+                        secteur: r.secteur, accepte_carte_vitale: r.accepte_carte_vitale, source: r.source_type
+                    };
                     const m = L.marker([r.latitude, r.longitude], { icon: icon2 })
-                        .bindPopup(`<strong>${r.name || ''}</strong><br>${r.categorie || ''}<br>${r.adresse || ''}<br>${r.commune || ''}`);
+                        .on('click', () => openDetailPanel(markerData, r.source));
                     m.addTo(map);
                     markers.search.push(m);
                 }

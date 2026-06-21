@@ -175,7 +175,7 @@ module.exports = function(db) {
             let results = [];
 
             try {
-                let query = `SELECT 'etablissement' as source, id, nom as name, type as categorie, adresse, code_postal, commune, departement, latitude, longitude FROM etablissements WHERE nom ILIKE $1 OR type ILIKE $2 OR commune ILIKE $3 OR adresse ILIKE $4`;
+                let query = `SELECT 'etablissement' as source, id, nom as name, type as categorie, adresse, code_postal, commune, departement, telephone, source as source_type, latitude, longitude FROM etablissements WHERE nom ILIKE $1 OR type ILIKE $2 OR commune ILIKE $3 OR adresse ILIKE $4`;
                 let params = [searchTerm, searchTerm, searchTerm, searchTerm];
                 let idx = 5;
 
@@ -201,7 +201,7 @@ module.exports = function(db) {
             }
 
             try {
-                let query = `SELECT 'professionnel' as source, id, nom || ' ' || COALESCE(prenom, '') as name, profession as categorie, adresse, code_postal, commune, departement, latitude, longitude FROM professionnels WHERE nom ILIKE $1 OR profession ILIKE $2 OR specialite ILIKE $3 OR commune ILIKE $4`;
+                let query = `SELECT 'professionnel' as source, id, nom as name, prenom, profession as categorie, specialite, secteur, accepte_carte_vitale, adresse, code_postal, commune, departement, source as source_type, latitude, longitude FROM professionnels WHERE nom ILIKE $1 OR profession ILIKE $2 OR specialite ILIKE $3 OR commune ILIKE $4`;
                 let params = [searchTerm, searchTerm, searchTerm, searchTerm];
                 let idx = 5;
 
