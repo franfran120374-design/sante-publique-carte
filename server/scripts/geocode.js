@@ -4,12 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 const BAN_URL = 'https://api-adresse.data.gouv.fr/search/';
-const DELAY_MS = 120;
+const DELAY_MS = 40;
 const BATCH_SIZE = 50;
-const STATUS_FILE = path.join(__dirname, '..', 'import-status.json');
+const STATUS_FILE = path.join(__dirname, '..', 'geocode-status.json');
 
-function updateStatus(status, message, progress) {
+function updateStatus(status, message, progress, lastId) {
     const data = { status, message, progress, timestamp: new Date().toISOString() };
+    if (lastId) data.lastId = lastId;
     fs.writeFileSync(STATUS_FILE, JSON.stringify(data, null, 2));
 }
 
@@ -34,12 +35,25 @@ function buildAddress(e) {
     return parts.join(' ');
 }
 
+function loadProgress() {
+    try {
+        if (fs.existsSync(STATUS_FILE)) {
+            const data = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+            return data.lastId || '';
+        }
+    } catch {}
+    return '';
+}
+
 async function geocodeBatch(pool) {
     console.log('=== GÉOCODAGE BAN DES ÉTABLISSEMENTS ===\n');
 
     const countResult = await pool.query('SELECT COUNT(*) as c FROM etablissements WHERE source != $1', ['user']);
     const total = parseInt(countResult.rows[0].c);
     console.log(`Total établissements à géocoder: ${total}`);
+
+    const lastId = loadProgress();
+    if (lastId) console.log(`Reprise après ID: ${lastId}`);
 
     updateStatus('running', `Géocodage BAN en cours... 0/${total}`, 0);
 
@@ -50,10 +64,15 @@ async function geocodeBatch(pool) {
 
     while (offset < total) {
         batchNum++;
-        const result = await pool.query(
-            'SELECT id, nom, type, adresse, code_postal, commune, latitude, longitude FROM etablissements WHERE source != $1 ORDER BY id LIMIT $2 OFFSET $3',
-            ['user', BATCH_SIZE, offset]
-        );
+        let query = 'SELECT id, nom, type, adresse, code_postal, commune, latitude, longitude FROM etablissements WHERE source != $1';
+        let params = ['user'];
+        if (lastId && offset === 0) {
+            query += ' AND id > $2';
+            params.push(lastId);
+        }
+        query += ' ORDER BY id LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+        params.push(BATCH_SIZE, offset);
+        const result = await pool.query(query, params);
 
         if (result.rows.length === 0) break;
 
@@ -117,8 +136,9 @@ async function geocodeBatch(pool) {
         }
 
         const progress = Math.round(((offset + result.rows.length) / total) * 100);
+        const lastRowId = result.rows[result.rows.length - 1]?.id || '';
         const msg = `Géocodage BAN: ${geocoded}/${total} géocodés, ${failed} échoués (${progress}%)`;
-        updateStatus('running', msg, progress);
+        updateStatus('running', msg, progress, lastRowId);
 
         if (batchNum % 20 === 0) {
             console.log(msg);

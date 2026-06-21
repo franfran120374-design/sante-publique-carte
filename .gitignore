@@ -13,3 +13,8 @@ check-data.js
 .env
 .DS_Store
 Thumbs.db
+server/geocode-status.json
+server/geocode-*.log
+server/scripts/check-*.js
+server/scripts/cleanup-*.js
+server/scripts/final-check.js
