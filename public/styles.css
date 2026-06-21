@@ -155,10 +155,48 @@ body {
     background: var(--white);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 0.8rem;
+    padding: 0.5rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.layer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.2rem 0;
+    user-select: none;
+}
+
+.layer-header .layer-chevron {
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+}
+
+.layer-controls.collapsed .layer-chevron {
+    transform: rotate(-90deg);
+}
+
+.layer-body {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    padding-top: 0.4rem;
+    max-height: 300px;
+    overflow: hidden;
+    transition: max-height 0.2s ease, opacity 0.2s ease, padding 0.2s ease;
+    opacity: 1;
+}
+
+.layer-controls.collapsed .layer-body {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    pointer-events: none;
 }
 
 .layer-toggle {
@@ -641,7 +679,8 @@ footer a {
     .search-box { width: 100%; }
     .search-box input { font-size: 14px; padding: 8px 12px; }
 
-    .layer-controls { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+    .layer-controls { padding: 0.4rem 0.6rem; }
+    .layer-body { flex-direction: row; flex-wrap: wrap; gap: 4px; }
     .layer-toggle { font-size: 0.65rem; padding: 3px 6px; background: rgba(255,255,255,0.92); border-radius: 4px; }
     .layer-dot { width: 8px; height: 8px; }
 

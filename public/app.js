@@ -673,6 +673,14 @@ let deptGeoLayer = null;
 let deptDensityData = null;
 
 function initLayers() {
+    const layerToggle = document.getElementById('layer-toggle');
+    const layerControls = document.getElementById('layer-controls');
+    if (layerToggle && layerControls) {
+        layerToggle.addEventListener('click', () => {
+            layerControls.classList.toggle('collapsed');
+        });
+    }
+
     ['etabs', 'profs', 'signals'].forEach(layer => {
         const el = document.getElementById(`layer-${layer}`);
         if (el) {
