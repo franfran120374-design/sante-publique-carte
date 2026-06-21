@@ -23,6 +23,7 @@
                 <button class="nav-btn" data-view="ajouter">Ajouter</button>
                 <button class="nav-btn" data-view="stats">Stats</button>
                 <button class="nav-btn" data-view="dashboard">Institutions</button>
+                <button class="nav-btn" data-view="apropos">À propos</button>
             </nav>
         </div>
     </header>
@@ -318,14 +319,122 @@
                 </div>
             </div>
         </section>
+
+        <!-- Vue À propos -->
+        <section id="view-apropos" class="view">
+            <div class="apropos-container">
+                <h2>À propos de SantéPublique.carte</h2>
+
+                <div class="apropos-card">
+                    <h3>Le projet</h3>
+                    <p>SantéPublique.carte est une cartographie participative de l'accès aux soins en France. Elle vise à <strong>identifier et visualiser les déserts médicaux</strong> en croisant les données ouvertes de l'État avec les signalements des citoyens.</p>
+                </div>
+
+                <div class="apropos-card">
+                    <h3>Sources de données</h3>
+                    <ul>
+                        <li><strong>FINESS</strong> — Fichier national des établissements sanitaires et sociaux (via <a href="https://www.data.gouv.fr" target="_blank">data.gouv.fr</a>)</li>
+                        <li><strong>Ameli</strong> — Annuaire des professionnels de santé conventionnés</li>
+                        <li><strong>Signalements citoyens</strong> — Rapports en temps réel sur les temps d'attente, fermetures et manque de soins</li>
+                        <li><strong>Base Adresse Nationale (BAN)</strong> — Géocodage précis des adresses</li>
+                    </ul>
+                </div>
+
+                <div class="apropos-card">
+                    <h3>Comment contribuer</h3>
+                    <ul>
+                        <li><strong>Signaler</strong> — Utilisez l'onglet "Signaler" pour signaler un temps d'attente, une fermeture ou un manque de soins</li>
+                        <li><strong>Ajouter</strong> — Ajoutez un établissement ou professionnel manquant via l'onglet "Ajouter"</li>
+                        <li><strong>Partager</strong> — Partagez la carte sur vos réseaux sociaux pour sensibiliser</li>
+                    </ul>
+                </div>
+
+                <div class="apropos-card">
+                    <h3>Statistiques en temps réel</h3>
+                    <div class="apropos-stats">
+                        <div><span class="apropos-stat-value" id="apro-etabs">-</span><br>Établissements</div>
+                        <div><span class="apropos-stat-value" id="apro-profs">-</span><br>Professionnels</div>
+                        <div><span class="apropos-stat-value" id="apro-signals">-</span><br>Signalements</div>
+                        <div><span class="apropos-stat-value" id="apro-depts">-</span><br>Départements couverts</div>
+                    </div>
+                </div>
+
+                <div class="apropos-card">
+                    <h3>Technologies</h3>
+                    <p>Node.js · Express · PostgreSQL · Leaflet.js · OpenStreetMap · API BAN · PWA</p>
+                </div>
+
+                <div class="apropos-card">
+                    <h3>Licence</h3>
+                    <p>Données sous <a href="https://www.etalab.gouv.fr/wp-content/uploads/2014/05/Licence_Ouverte.pdf" target="_blank">Licence Ouverte / Open Licence</a> (Etalab). Code source sur <a href="https://github.com/franfran120374-design/sante-publique-carte" target="_blank">GitHub</a>.</p>
+                </div>
+            </div>
+        </section>
     </main>
 
-    <!-- Modal Détail -->
-    <div id="detail-modal" class="modal">
-        <div class="modal-content">
-            <button class="modal-close" id="modal-close">&times;</button>
-            <div id="modal-body"></div>
+    <!-- Panneau Détail Slide-in -->
+    <div id="detail-panel" class="detail-panel">
+        <button class="detail-close" id="detail-close">&times;</button>
+        <div id="detail-content"></div>
+    </div>
+
+    <!-- Filtres avancés -->
+    <div id="filters-panel" class="filters-panel">
+        <div class="filters-header">
+            <strong>Filtres</strong>
+            <button id="filters-reset" class="btn-link">Réinitialiser</button>
         </div>
+        <div class="filter-group">
+            <label>Département</label>
+            <input type="text" id="dept-search" placeholder="Ex: 31, 75, 69..." maxlength="3" list="dept-list">
+            <datalist id="dept-list"></datalist>
+        </div>
+        <div class="filter-group">
+            <label>Spécialité / Profession</label>
+            <select id="filter-specialite">
+                <option value="">Toutes</option>
+                <option value="Médecin généraliste">Médecin généraliste</option>
+                <option value="Pédiatre">Pédiatre</option>
+                <option value="Gynécologue">Gynécologue</option>
+                <option value="Dentiste">Dentiste</option>
+                <option value="Infirmier">Infirmier</option>
+                <option value="Kinésithérapeute">Kinésithérapeute</option>
+                <option value="Pharmacien">Pharmacien</option>
+                <option value="Sage-femme">Sage-femme</option>
+                <option value="Psychiatre">Psychiatre</option>
+                <option value="Dermatologue">Dermatologue</option>
+                <option value="Ophtalmologue">Ophtalmologue</option>
+                <option value="ORL">ORL</option>
+                <option value="Cardiologue">Cardiologue</option>
+                <option value="Radiologue">Radiologue</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Secteur conventionné</label>
+            <div class="filter-checks">
+                <label><input type="checkbox" id="filter-sect1" value="1" checked> Secteur 1</label>
+                <label><input type="checkbox" id="filter-sect2" value="2" checked> Secteur 2</label>
+                <label><input type="checkbox" id="filter-sect3" value="3" checked> Secteur 3</label>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label>Type d'établissement</label>
+            <select id="filter-type">
+                <option value="">Tous</option>
+                <option value="Pharmacie">Pharmacie</option>
+                <option value="Centre de santé">Centre de santé</option>
+                <option value="Maison de santé">Maison de santé</option>
+                <option value="Centre Hospitalier">Centre Hospitalier</option>
+                <option value="Clinique">Clinique</option>
+                <option value="Laboratoire">Laboratoire</option>
+                <option value="CMP">CMP</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Rayon : <span id="rayon-val">200</span> km</label>
+            <input type="range" id="filter-rayon" min="10" max="500" value="200" step="10">
+        </div>
+        <button id="apply-filters" class="btn-primary">Appliquer</button>
     </div>
 
     <footer>
