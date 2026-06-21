@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 const BAN_URL = 'https://api-adresse.data.gouv.fr/search/';
-const DELAY_MS = 40;
-const BATCH_SIZE = 50;
+const CONCURRENCY = 10;
+const BATCH_SIZE = 200;
 const STATUS_FILE = path.join(__dirname, '..', 'geocode-status.json');
 
 function updateStatus(status, message, progress, lastId) {
@@ -45,12 +45,42 @@ function loadProgress() {
     return '';
 }
 
+async function geocodeOne(e) {
+    const query = buildAddress(e);
+    const cp = e.code_postal || '';
+    if (!query && !cp) return null;
+
+    try {
+        const url = new URL(BAN_URL);
+        url.searchParams.set('q', query || e.commune || '');
+        if (cp) url.searchParams.set('postcode', cp);
+        url.searchParams.set('limit', '1');
+
+        const res = await fetch(url.toString(), {
+            timeout: 5000,
+            headers: { 'User-Agent': 'SantePubliqueCarte/1.0' }
+        });
+
+        if (!res.ok) return null;
+
+        const data = await res.json();
+        if (data.features && data.features.length > 0) {
+            const [lng, lat] = data.features[0].geometry.coordinates;
+            const score = data.features[0].properties.score || 0;
+            if (score > 0.3) {
+                return { id: e.id, lat, lng };
+            }
+        }
+    } catch {}
+    return null;
+}
+
 async function geocodeBatch(pool) {
-    console.log('=== GÉOCODAGE BAN DES ÉTABLISSEMENTS ===\n');
+    console.log('=== GÉOCODAGE BAN PARALLÈLE ===\n');
 
     const countResult = await pool.query('SELECT COUNT(*) as c FROM etablissements WHERE source != $1', ['user']);
     const total = parseInt(countResult.rows[0].c);
-    console.log(`Total établissements à géocoder: ${total}`);
+    console.log(`Total: ${total} établissements`);
 
     const lastId = loadProgress();
     if (lastId) console.log(`Reprise après ID: ${lastId}`);
@@ -59,11 +89,9 @@ async function geocodeBatch(pool) {
 
     let geocoded = 0;
     let failed = 0;
-    let batchNum = 0;
     let offset = 0;
 
     while (offset < total) {
-        batchNum++;
         let query = 'SELECT id, nom, type, adresse, code_postal, commune, latitude, longitude FROM etablissements WHERE source != $1';
         let params = ['user'];
         if (lastId && offset === 0) {
@@ -77,53 +105,14 @@ async function geocodeBatch(pool) {
         if (result.rows.length === 0) break;
 
         const updates = [];
-        for (const e of result.rows) {
-            const query = buildAddress(e);
-            const cp = e.code_postal || '';
-            const commune = e.commune || '';
-
-            if (!query && !cp) {
-                failed++;
-                continue;
+        for (let i = 0; i < result.rows.length; i += CONCURRENCY) {
+            const chunk = result.rows.slice(i, i + CONCURRENCY);
+            const results = await Promise.all(chunk.map(e => geocodeOne(e)));
+            for (const r of results) {
+                if (r) { updates.push(r); geocoded++; }
+                else failed++;
             }
-
-            try {
-                const url = new URL(BAN_URL);
-                url.searchParams.set('q', query || commune);
-                if (cp) url.searchParams.set('postcode', cp);
-                url.searchParams.set('limit', '1');
-
-                const res = await fetch(url.toString(), {
-                    timeout: 5000,
-                    headers: { 'User-Agent': 'SantePubliqueCarte/1.0' }
-                });
-
-                if (!res.ok) {
-                    failed++;
-                    await sleep(DELAY_MS);
-                    continue;
-                }
-
-                const data = await res.json();
-
-                if (data.features && data.features.length > 0) {
-                    const [lng, lat] = data.features[0].geometry.coordinates;
-                    const score = data.features[0].properties.score || 0;
-
-                    if (score > 0.3) {
-                        updates.push({ id: e.id, lat, lng });
-                        geocoded++;
-                    } else {
-                        failed++;
-                    }
-                } else {
-                    failed++;
-                }
-            } catch (err) {
-                failed++;
-            }
-
-            await sleep(DELAY_MS);
+            await sleep(50);
         }
 
         if (updates.length > 0) {
@@ -140,7 +129,7 @@ async function geocodeBatch(pool) {
         const msg = `Géocodage BAN: ${geocoded}/${total} géocodés, ${failed} échoués (${progress}%)`;
         updateStatus('running', msg, progress, lastRowId);
 
-        if (batchNum % 20 === 0) {
+        if (offset % 1000 === 0 || offset + BATCH_SIZE >= total) {
             console.log(msg);
         }
 
