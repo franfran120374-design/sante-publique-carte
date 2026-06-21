@@ -185,6 +185,7 @@ body {
 .layer-dot.profs { background: var(--success); }
 .layer-dot.signals { background: var(--warning); }
 .layer-dot.zones { background: var(--danger); }
+.layer-dot.depts { background: #9b59b6; }
 
 .layer-toggle input:not(:checked) + .layer-dot {
     opacity: 0.3;

@@ -569,6 +569,9 @@ function clearSearchMarkers() {
     markers.search = [];
 }
 
+let deptGeoLayer = null;
+let deptDensityData = null;
+
 function initLayers() {
     ['etabs', 'profs', 'signals'].forEach(layer => {
         const el = document.getElementById(`layer-${layer}`);
@@ -582,6 +585,64 @@ function initLayers() {
             });
         }
     });
+
+    const deptLayer = document.getElementById('layer-depts');
+    if (deptLayer) {
+        deptLayer.addEventListener('change', async (e) => {
+            if (e.target.checked) {
+                await loadDeptOverlay();
+            } else if (deptGeoLayer) {
+                map.removeLayer(deptGeoLayer);
+                deptGeoLayer = null;
+            }
+        });
+    }
+}
+
+async function loadDeptOverlay() {
+    if (deptGeoLayer) { deptGeoLayer.addTo(map); return; }
+    try {
+        const [geoRes, densRes] = await Promise.all([
+            fetch('/data/departements.geojson'),
+            fetch(`${API}/api/stats/densite-depts`)
+        ]);
+        const geo = await geoRes.json();
+        const dens = await densRes.json();
+        deptDensityData = dens;
+
+        const profCounts = Object.values(dens.professionnels || {});
+        const maxProfs = Math.max(...profCounts, 1);
+
+        deptGeoLayer = L.geoJSON(geo, {
+            style: feature => {
+                const code = feature.properties.code;
+                const profs = dens.professionnels[code] || 0;
+                const ratio = profs / maxProfs;
+                const r = Math.round(39 + (231 - 39) * (1 - ratio));
+                const g = Math.round(174 - 80 * ratio);
+                const b = Math.round(96 + 100 * (1 - ratio));
+                return {
+                    fillColor: `rgb(${r},${g},${b})`,
+                    weight: 1,
+                    opacity: 0.6,
+                    color: '#fff',
+                    fillOpacity: 0.35
+                };
+            },
+            onEachFeature: (feature, layer) => {
+                const code = feature.properties.code;
+                const profs = dens.professionnels[code] || 0;
+                const etabs = dens.etablissements[code] || 0;
+                layer.bindPopup(`
+                    <strong>${feature.properties.nom}</strong> (${code})<br>
+                    ${profs.toLocaleString('fr-FR')} professionnels<br>
+                    ${etabs.toLocaleString('fr-FR')} établissements
+                `);
+            }
+        }).addTo(map);
+    } catch (e) {
+        console.error('Erreur chargement GeoJSON:', e);
+    }
 }
 
 function getUserLocation() {

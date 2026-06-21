@@ -109,5 +109,33 @@ module.exports = function(db) {
         }
     });
 
+    router.get('/densite-depts', async (req, res) => {
+        try {
+            const profs = await db.prepare(`
+                SELECT departement, COUNT(*) as total
+                FROM professionnels
+                WHERE departement IS NOT NULL AND departement != ''
+                GROUP BY departement
+            `).all();
+
+            const etabs = await db.prepare(`
+                SELECT departement, COUNT(*) as total
+                FROM etablissements
+                WHERE departement IS NOT NULL AND departement != ''
+                GROUP BY departement
+            `).all();
+
+            const profMap = {};
+            profs.forEach(p => { profMap[p.departement] = parseInt(p.total); });
+            const etabMap = {};
+            etabs.forEach(e => { etabMap[e.departement] = parseInt(e.total); });
+
+            res.json({ professionnels: profMap, etablissements: etabMap });
+        } catch (err) {
+            console.error('Erreur densite-depts:', err);
+            res.status(500).json({ error: 'Erreur serveur' });
+        }
+    });
+
     return router;
 };
