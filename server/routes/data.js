@@ -206,5 +206,41 @@ module.exports = function(db) {
         }
     });
 
+    router.post('/etablissements', async (req, res) => {
+        try {
+            const { nom, type, adresse, code_postal, commune, departement, telephone, latitude, longitude } = req.body;
+            if (!nom || !latitude || !longitude) {
+                return res.status(400).json({ error: 'nom, latitude, longitude requis' });
+            }
+            const id = 'USER-' + Date.now();
+            await db.prepare(`
+                INSERT INTO etablissements (id, nom, type, adresse, code_postal, commune, departement, telephone, latitude, longitude, source, date_import)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'user', NOW())
+            `).run(id, nom, type || '', adresse || '', code_postal || '', commune || '', departement || '', telephone || '', latitude, longitude);
+            res.json({ id, message: 'Établissement ajouté' });
+        } catch (err) {
+            console.error('Erreur ajout etablissement:', err);
+            res.status(500).json({ error: 'Erreur serveur' });
+        }
+    });
+
+    router.post('/professionnels', async (req, res) => {
+        try {
+            const { nom, prenom, profession, specialite, secteur, accepte_carte_vitale, adresse, code_postal, commune, departement, telephone, latitude, longitude } = req.body;
+            if (!nom || !latitude || !longitude) {
+                return res.status(400).json({ error: 'nom, latitude, longitude requis' });
+            }
+            const id = 'USER-' + Date.now();
+            await db.prepare(`
+                INSERT INTO professionnels (id, nom, prenom, profession, specialite, secteur, accepte_carte_vitale, adresse, code_postal, commune, departement, telephone, latitude, longitude, source, date_import)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'user', NOW())
+            `).run(id, nom, prenom || '', profession || '', specialite || '', secteur || '1', accepte_carte_vitale ? 1 : 0, adresse || '', code_postal || '', commune || '', departement || '', telephone || '', latitude, longitude);
+            res.json({ id, message: 'Professionnel ajouté' });
+        } catch (err) {
+            console.error('Erreur ajout professionnel:', err);
+            res.status(500).json({ error: 'Erreur serveur' });
+        }
+    });
+
     return router;
 };

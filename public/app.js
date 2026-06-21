@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     getUserLocation();
     pollImportStatus();
     initNotifications();
+    initAddForms();
 });
 
 function initNotifications() {
@@ -375,11 +376,16 @@ function renderEtablissements(etabs) {
         if (!e.latitude || !e.longitude) return;
         const marker = L.marker([e.latitude, e.longitude], { icon })
             .bindPopup(`
-                <strong>${escapeHtml(e.nom)}</strong><br>
-                <small>${escapeHtml(e.type || '')}</small><br>
-                ${escapeHtml(e.adresse || '')}<br>
-                ${escapeHtml(e.code_postal || '')} ${escapeHtml(e.commune || '')}<br>
-                ${e.telephone ? 'Tel: ' + escapeHtml(e.telephone) : ''}
+                <div style="min-width:220px">
+                    <strong style="font-size:14px">${escapeHtml(e.nom)}</strong><br>
+                    <span style="background:#3498db;color:white;padding:2px 6px;border-radius:3px;font-size:11px">${escapeHtml(e.type || 'Établissement')}</span><br>
+                    <hr style="margin:5px 0;border-color:#eee">
+                    📍 ${escapeHtml(e.adresse || '')}<br>
+                    ${escapeHtml(e.code_postal || '')} ${escapeHtml(e.commune || '')}<br>
+                    ${e.telephone ? '📞 <a href="tel:' + escapeHtml(e.telephone) + '">' + escapeHtml(e.telephone) + '</a><br>' : ''}
+                    🏷️ FINESS : ${escapeHtml(e.id)}<br>
+                    ${e.source === 'user' ? '<span style="background:#27ae60;color:white;padding:1px 5px;border-radius:3px;font-size:10px">Ajouté par un citoyen</span>' : ''}
+                </div>
             `);
         markers.etabs.push(marker);
         if (document.getElementById('layer-etabs') && document.getElementById('layer-etabs').checked) {
@@ -398,12 +404,17 @@ function renderProfessionnels(profs) {
         if (!p.latitude || !p.longitude) return;
         const marker = L.marker([p.latitude, p.longitude], { icon })
             .bindPopup(`
-                <strong>${escapeHtml(p.nom)} ${escapeHtml(p.prenom || '')}</strong><br>
-                <small>${escapeHtml(p.profession || '')}</small><br>
-                ${p.specialite ? escapeHtml(p.specialite) + '<br>' : ''}
-                ${p.secteur ? 'Secteur ' + escapeHtml(p.secteur) + '<br>' : ''}
-                ${escapeHtml(p.adresse || '')}<br>
-                ${escapeHtml(p.code_postal || '')} ${escapeHtml(p.commune || '')}
+                <div style="min-width:220px">
+                    <strong style="font-size:14px">${escapeHtml(p.prenom || '')} ${escapeHtml(p.nom)}</strong><br>
+                    <span style="background:#e67e22;color:white;padding:2px 6px;border-radius:3px;font-size:11px">${escapeHtml(p.profession || p.specialite || 'Professionnel')}</span><br>
+                    <hr style="margin:5px 0;border-color:#eee">
+                    📍 ${escapeHtml(p.adresse || '')}<br>
+                    ${escapeHtml(p.code_postal || '')} ${escapeHtml(p.commune || '')}<br>
+                    ${p.secteur ? '💰 Secteur ' + escapeHtml(p.secteur) + '<br>' : ''}
+                    ${p.accepte_carte_vitale ? '💳 Carte Vitale acceptée<br>' : ''}
+                    🏷️ ID : ${escapeHtml(p.id)}<br>
+                    ${p.source === 'user' ? '<span style="background:#27ae60;color:white;padding:1px 5px;border-radius:3px;font-size:10px">Ajouté par un citoyen</span>' : ''}
+                </div>
             `);
         markers.profs.push(marker);
         if (document.getElementById('layer-profs') && document.getElementById('layer-profs').checked) {
@@ -557,4 +568,122 @@ function renderBarChart(containerId, data, labelKey, valueKey, colors) {
             <div class="bar-fill" style="width:${(d[valueKey] / max * 100)}%;background:${colors[i % colors.length]}">${d[valueKey]}</div>
         </div>
     `).join('')}</div>`;
+}
+
+let pickerMode = null;
+let pickerMarker = null;
+
+function initAddForms() {
+    document.querySelectorAll('.add-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.add-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelectorAll('.add-form').forEach(f => f.classList.remove('active'));
+            document.getElementById(`form-add-${tab.dataset.addTab}`).classList.add('active');
+            document.getElementById('add-success').style.display = 'none';
+        });
+    });
+
+    function setupPicker(btnId, latId, lngId) {
+        document.getElementById(btnId).addEventListener('click', () => {
+            pickerMode = { latId, lngId };
+            document.getElementById('map').classList.add('picker-mode');
+            document.getElementById(btnId).textContent = '👆 Cliquez sur la carte';
+            document.getElementById(btnId).style.background = '#e74c3c';
+        });
+    }
+
+    setupPicker('add-etab-locate', 'add-etab-lat', 'add-etab-lng');
+    setupPicker('add-prof-locate', 'add-prof-lat', 'add-prof-lng');
+
+    map.on('click', function(e) {
+        if (!pickerMode) return;
+        const { lat, lng } = e.latlng;
+        document.getElementById(pickerMode.latId).value = lat.toFixed(6);
+        document.getElementById(pickerMode.lngId).value = lng.toFixed(6);
+
+        if (pickerMarker) map.removeLayer(pickerMarker);
+        pickerMarker = L.marker([lat, lng]).addTo(map);
+
+        document.getElementById('map').classList.remove('picker-mode');
+        const btn = document.getElementById(pickerMode.latId === 'add-etab-lat' ? 'add-etab-locate' : 'add-prof-locate');
+        btn.textContent = '📍 Positionnée ✓';
+        btn.style.background = '#27ae60';
+        pickerMode = null;
+    });
+
+    document.getElementById('form-add-etab').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            nom: document.getElementById('add-etab-nom').value,
+            type: document.getElementById('add-etab-type').value,
+            adresse: document.getElementById('add-etab-adresse').value,
+            code_postal: document.getElementById('add-etab-cp').value,
+            commune: document.getElementById('add-etab-ville').value,
+            telephone: document.getElementById('add-etab-tel').value,
+            latitude: parseFloat(document.getElementById('add-etab-lat').value),
+            longitude: parseFloat(document.getElementById('add-etab-lng').value)
+        };
+        if (!data.nom || !data.latitude || !data.longitude) {
+            alert('Nom et position requis');
+            return;
+        }
+        try {
+            const res = await fetch(`${API}/api/data/etablissements`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (res.ok) {
+                document.getElementById('add-success').style.display = 'block';
+                document.getElementById('form-add-etab').reset();
+                if (pickerMarker) map.removeLayer(pickerMarker);
+                loadData();
+            } else {
+                alert(result.error || 'Erreur');
+            }
+        } catch (err) {
+            alert('Erreur réseau');
+        }
+    });
+
+    document.getElementById('form-add-prof').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            nom: document.getElementById('add-prof-nom').value,
+            prenom: document.getElementById('add-prof-prenom').value,
+            profession: document.getElementById('add-prof-metier').value,
+            specialite: document.getElementById('add-prof-spec').value,
+            secteur: document.getElementById('add-prof-secteur').value,
+            accepte_carte_vitale: document.getElementById('add-prof-cv').checked,
+            adresse: document.getElementById('add-prof-adresse').value,
+            code_postal: document.getElementById('add-prof-cp').value,
+            commune: document.getElementById('add-prof-ville').value,
+            latitude: parseFloat(document.getElementById('add-prof-lat').value),
+            longitude: parseFloat(document.getElementById('add-prof-lng').value)
+        };
+        if (!data.nom || !data.latitude || !data.longitude) {
+            alert('Nom et position requis');
+            return;
+        }
+        try {
+            const res = await fetch(`${API}/api/data/professionnels`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (res.ok) {
+                document.getElementById('add-success').style.display = 'block';
+                document.getElementById('form-add-prof').reset();
+                if (pickerMarker) map.removeLayer(pickerMarker);
+                loadData();
+            } else {
+                alert(result.error || 'Erreur');
+            }
+        } catch (err) {
+            alert('Erreur réseau');
+        }
+    });
 }

@@ -20,6 +20,7 @@
             <nav class="main-nav">
                 <button class="nav-btn active" data-view="map">Carte</button>
                 <button class="nav-btn" data-view="signaler">Signaler</button>
+                <button class="nav-btn" data-view="ajouter">Ajouter</button>
                 <button class="nav-btn" data-view="stats">Stats</button>
                 <button class="nav-btn" data-view="dashboard">Institutions</button>
             </nav>
@@ -126,6 +127,146 @@
                         Envoyer le signalement
                     </button>
                 </form>
+            </div>
+        </section>
+
+        <!-- Vue Ajouter -->
+        <section id="view-ajouter" class="view">
+            <div class="form-container">
+                <h2>Ajouter un établissement ou professionnel</h2>
+                <p class="subtitle">Contribuez à enrichir la carte avec des données manquantes</p>
+
+                <div class="add-tabs">
+                    <button class="add-tab active" data-add-tab="etab">🏥 Établissement</button>
+                    <button class="add-tab" data-add-tab="prof">👨‍⚕️ Professionnel</button>
+                </div>
+
+                <form id="form-add-etab" class="add-form active">
+                    <div class="form-group">
+                        <label>Nom *</label>
+                        <input type="text" id="add-etab-nom" required placeholder="Ex: Centre de Santé Saint-Martin">
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="add-etab-type">
+                            <option value="Hôpital">Hôpital</option>
+                            <option value="Clinique">Clinique</option>
+                            <option value="Centre de santé">Centre de santé</option>
+                            <option value="CMP">CMP</option>
+                            <option value="Pharmacie">Pharmacie</option>
+                            <option value="Laboratoire">Laboratoire</option>
+                            <option value="EHPAD">EHPAD</option>
+                            <option value="SSIAD">SSIAD</option>
+                            <option value="Autre" selected>Autre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Adresse</label>
+                        <input type="text" id="add-etab-adresse" placeholder="12 rue de la Paix">
+                    </div>
+                    <div class="form-group row">
+                        <div>
+                            <label>Code postal</label>
+                            <input type="text" id="add-etab-cp" maxlength="5" placeholder="75001">
+                        </div>
+                        <div>
+                            <label>Ville</label>
+                            <input type="text" id="add-etab-ville" placeholder="Paris">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Téléphone</label>
+                        <input type="tel" id="add-etab-tel" placeholder="01 23 45 67 89">
+                    </div>
+                    <div class="form-group">
+                        <label>📍 Position sur la carte</label>
+                        <div class="location-inputs">
+                            <input type="number" id="add-etab-lat" step="any" placeholder="Latitude" readonly>
+                            <input type="number" id="add-etab-lng" step="any" placeholder="Longitude" readonly>
+                            <button type="button" id="add-etab-locate" class="btn-secondary">📍 Cliquer sur la carte</button>
+                        </div>
+                        <small>Cliquez sur "Cliquer sur la carte" puis sur la carte pour placer le marqueur</small>
+                    </div>
+                    <button type="submit" class="btn-primary">Ajouter l'établissement</button>
+                </form>
+
+                <form id="form-add-prof" class="add-form">
+                    <div class="form-group row">
+                        <div>
+                            <label>Nom *</label>
+                            <input type="text" id="add-prof-nom" required placeholder="Dupont">
+                        </div>
+                        <div>
+                            <label>Prénom</label>
+                            <input type="text" id="add-prof-prenom" placeholder="Marie">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Profession *</label>
+                        <select id="add-prof-metier">
+                            <option value="Médecin généraliste">Médecin généraliste</option>
+                            <option value="Pédiatre">Pédiatre</option>
+                            <option value="Gynécologue">Gynécologue</option>
+                            <option value="Dentiste">Dentiste</option>
+                            <option value="Infirmier">Infirmier</option>
+                            <option value="Masseur-kinésithérapeute">Kinésithérapeute</option>
+                            <option value="Pharmacien">Pharmacien</option>
+                            <option value="Sage-femme">Sage-femme</option>
+                            <option value="Psychiatre">Psychiatre</option>
+                            <option value="Dermatologue">Dermatologue</option>
+                            <option value="Ophtalmologue">Ophtalmologue</option>
+                            <option value="ORL">ORL</option>
+                            <option value="Cardiologue">Cardiologue</option>
+                            <option value="Radiologue">Radiologue</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Spécialité / Discipline</label>
+                        <input type="text" id="add-prof-spec" placeholder="Ex: Médecine générale, Cardiologie...">
+                    </div>
+                    <div class="form-group">
+                        <label>Secteur</label>
+                        <select id="add-prof-secteur">
+                            <option value="1">Secteur 1 (conventionné)</option>
+                            <option value="2">Secteur 2</option>
+                            <option value="3">Secteur 3 (majoré)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="add-prof-cv" checked> Accepte la carte vitale
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Adresse</label>
+                        <input type="text" id="add-prof-adresse" placeholder="25 rue du Faubourg">
+                    </div>
+                    <div class="form-group row">
+                        <div>
+                            <label>Code postal</label>
+                            <input type="text" id="add-prof-cp" maxlength="5" placeholder="75011">
+                        </div>
+                        <div>
+                            <label>Ville</label>
+                            <input type="text" id="add-prof-ville" placeholder="Paris">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>📍 Position sur la carte</label>
+                        <div class="location-inputs">
+                            <input type="number" id="add-prof-lat" step="any" placeholder="Latitude" readonly>
+                            <input type="number" id="add-prof-lng" step="any" placeholder="Longitude" readonly>
+                            <button type="button" id="add-prof-locate" class="btn-secondary">📍 Cliquer sur la carte</button>
+                        </div>
+                        <small>Cliquez sur "Cliquer sur la carte" puis sur la carte pour placer le marqueur</small>
+                    </div>
+                    <button type="submit" class="btn-primary">Ajouter le professionnel</button>
+                </form>
+
+                <div id="add-success" style="display:none" class="success-msg">
+                    ✅ Ajouté avec succès ! Il apparaîtra sur la carte après rechargement.
+                </div>
             </div>
         </section>
 
