@@ -1,5 +1,6 @@
 const API = '';
 let map, markers = { etabs: [], profs: [], signals: [], search: [] };
+let clusterGroups = {};
 let userLat = 46.603354, userLng = 1.888334;
 let selectedType = null;
 let signalPickerActive = false;
@@ -635,10 +636,10 @@ function initLayers() {
         if (el) {
             el.addEventListener('change', (e) => {
                 const visible = e.target.checked;
-                markers[layer].forEach(m => {
-                    if (visible) m.addTo(map);
-                    else map.removeLayer(m);
-                });
+                if (clusterGroups[layer]) {
+                    if (visible) map.addLayer(clusterGroups[layer]);
+                    else map.removeLayer(clusterGroups[layer]);
+                }
             });
         }
     });
@@ -817,7 +818,10 @@ async function loadData() {
 
 function clearMarkers() {
     ['etabs', 'profs', 'signals'].forEach(layer => {
-        markers[layer].forEach(m => map.removeLayer(m));
+        if (clusterGroups[layer]) {
+            map.removeLayer(clusterGroups[layer]);
+            clusterGroups[layer] = null;
+        }
         markers[layer] = [];
     });
 }
@@ -828,15 +832,27 @@ function renderEtablissements(etabs) {
         iconSize: [10, 10]
     });
 
+    const cluster = L.markerClusterGroup({
+        maxClusterRadius: 40,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 10
+    });
+
     etabs.forEach(e => {
         if (!e.latitude || !e.longitude) return;
         const marker = L.marker([e.latitude, e.longitude], { icon })
             .on('click', () => openDetailPanel(e, 'etablissement'));
         markers.etabs.push(marker);
-        if (document.getElementById('layer-etabs') && document.getElementById('layer-etabs').checked) {
-            marker.addTo(map);
-        }
+        cluster.addLayer(marker);
     });
+
+    clusterGroups.etabs = cluster;
+    if (document.getElementById('layer-etabs') && document.getElementById('layer-etabs').checked) {
+        map.addLayer(cluster);
+    }
 }
 
 function renderProfessionnels(profs) {
@@ -845,18 +861,36 @@ function renderProfessionnels(profs) {
         iconSize: [10, 10]
     });
 
+    const cluster = L.markerClusterGroup({
+        maxClusterRadius: 40,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 10
+    });
+
     profs.forEach(p => {
         if (!p.latitude || !p.longitude) return;
         const marker = L.marker([p.latitude, p.longitude], { icon })
             .on('click', () => openDetailPanel(p, 'professionnel'));
         markers.profs.push(marker);
-        if (document.getElementById('layer-profs') && document.getElementById('layer-profs').checked) {
-            marker.addTo(map);
-        }
+        cluster.addLayer(marker);
     });
+
+    clusterGroups.profs = cluster;
+    if (document.getElementById('layer-profs') && document.getElementById('layer-profs').checked) {
+        map.addLayer(cluster);
+    }
 }
 
 function renderSignalements(signals) {
+    const cluster = L.markerClusterGroup({
+        maxClusterRadius: 30,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false
+    });
+
     signals.forEach(s => {
         const color = s.type === 'attente' ? '#f39c12' :
                       s.type === 'fermeture' ? '#e74c3c' :
@@ -883,10 +917,13 @@ function renderSignalements(signals) {
                 </div>
             `);
         markers.signals.push(marker);
-        if (document.getElementById('layer-signals') && document.getElementById('layer-signals').checked) {
-            marker.addTo(map);
-        }
+        cluster.addLayer(marker);
     });
+
+    clusterGroups.signals = cluster;
+    if (document.getElementById('layer-signals') && document.getElementById('layer-signals').checked) {
+        map.addLayer(cluster);
+    }
 }
 
 function escapeHtml(str) {
