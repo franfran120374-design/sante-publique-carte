@@ -3,28 +3,17 @@ const express = require('express');
 const EXCLUDED_TYPES = [
     'EHPAD', 'Etablissement d\'hébergement pour personnes âgées dépendantes',
     'Résidence Sociale', 'Autre Résidence Sociale',
-    'Centre Hébergement', 'Centre Hébergement & Réinsertion Sociale', 'C.H.R.S.',
+    'Centre Hébergement', 'C.H.R.S.',
     'Institut Médico-Educatif', 'I.M.E.',
-    'Centre Médico-Psycho-Pédagogique', 'C.M.P.P.',
     'Maison d\'Accueil Spécialisée', 'M.A.S.',
-    'Service de prévention spécialisée',
-    'Service d\'Éducation Spéciale et de Soins à Domicile', 'S.E.S.S.A.D.',
-    'Centre d\'Action Sociale Protestant',
     'Service de Soins Infirmiers A Domicile', 'S.S.I.A.D',
-    'Structure d\'Alternative à la dialyse',
-    'Structure Dispensatrice',
-    'Autre établissement ou service medico-social',
-    'Pension de Famille', 'Résidence Accueil',
-];
-
-const MEDICAL_TYPES = [
-    'Hôpital', 'CHU', 'CHR', 'Centre Hospitalier', 'Clinique', 'Etablissement de santé',
-    'Centre de santé', 'Polyclinique', 'C.M.P.', 'Centre Médico-Psychologique',
-    'Pharmacie', 'Officine',
-    'Laboratoire', 'Biologie médicale',
-    'Centre de radiologie', 'Imagerie médicale',
-    'Etablissement de santé privé',
-    'Centre de consultation',
+    'Maison d\'Enfants', 'Centre d\'Accueil',
+    'ESAT', 'Aide par le Travail',
+    'Autre Centre d\'Accueil',
+    'Service d\'Accompagnement à la Vie Sociale', 'S.A.V.S.',
+    'Foyer de Vie', 'Foyer d\'Accueil', 'Lieux de Vie',
+    'Service autonomie aide',
+    'Pension de Famille',
 ];
 
 module.exports = function(db) {
