@@ -674,3 +674,34 @@ footer a {
     color: #888;
     font-size: 11px;
 }
+
+.share-section {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.share-section strong {
+    font-size: 12px;
+    color: #999;
+}
+
+.share-btn {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    transition: opacity 0.2s;
+}
+
+.share-btn:hover { opacity: 0.85; }
+.share-btn.twitter { background: #1da1f2; }
+.share-btn.facebook { background: #1877f2; }
+.share-btn.linkedin { background: #0077b5; }
+.share-btn.bluesky { background: #0085ff; }
