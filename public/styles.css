@@ -823,7 +823,7 @@ footer a {
     font-weight: 600;
 }
 
-.picker-mode #map { cursor: crosshair; }
+#map.picker-mode { cursor: crosshair !important; }
 
 .detail-panel {
     position: fixed;
