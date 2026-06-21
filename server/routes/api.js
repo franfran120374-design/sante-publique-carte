@@ -168,5 +168,33 @@ module.exports = function(db) {
         }
     });
 
+    router.get('/signalements/new', async (req, res) => {
+        try {
+            const { since, lat, lng, rayon = 100 } = req.query;
+            if (!since) return res.json([]);
+
+            let query = 'SELECT * FROM signalements WHERE date_signalement > $1';
+            const params = [since];
+            let idx = 2;
+
+            if (lat && lng) {
+                const latNum = parseFloat(lat);
+                const lngNum = parseFloat(lng);
+                const rayonKm = parseFloat(rayon);
+                const latDelta = rayonKm / 111;
+                const lngDelta = rayonKm / (111 * Math.cos(latNum * Math.PI / 180));
+                query += ` AND latitude BETWEEN $${idx} AND $${idx+1} AND longitude BETWEEN $${idx+2} AND $${idx+3}`;
+                params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
+            }
+
+            query += ' ORDER BY date_signalement DESC LIMIT 20';
+            const rows = await db.prepare(query).all(...params);
+            res.json(rows);
+        } catch (err) {
+            console.error('Erreur new signalements:', err);
+            res.status(500).json({ error: 'Erreur serveur' });
+        }
+    });
+
     return router;
 };

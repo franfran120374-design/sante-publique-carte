@@ -3,6 +3,9 @@ let map, markers = { etabs: [], profs: [], signals: [], search: [] };
 let userLat = 46.603354, userLng = 1.888334;
 let selectedType = null;
 
+let notificationsEnabled = false;
+let lastCheck = new Date().toISOString();
+
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
     initNav();
@@ -12,7 +15,74 @@ document.addEventListener('DOMContentLoaded', () => {
     loadData();
     getUserLocation();
     pollImportStatus();
+    initNotifications();
 });
+
+function initNotifications() {
+    const btn = document.getElementById('notif-toggle');
+    if (!btn) return;
+
+    notificationsEnabled = localStorage.getItem('notif_enabled') === 'true';
+    updateNotifBtn();
+
+    btn.addEventListener('click', async () => {
+        if (!notificationsEnabled) {
+            if ('Notification' in window) {
+                const perm = await Notification.requestPermission();
+                if (perm === 'granted') {
+                    notificationsEnabled = true;
+                    localStorage.setItem('notif_enabled', 'true');
+                    lastCheck = new Date().toISOString();
+                    startNotifPolling();
+                }
+            } else {
+                alert('Notifications non supportées par ce navigateur');
+            }
+        } else {
+            notificationsEnabled = false;
+            localStorage.setItem('notif_enabled', 'false');
+        }
+        updateNotifBtn();
+    });
+
+    if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+        startNotifPolling();
+    }
+}
+
+function updateNotifBtn() {
+    const btn = document.getElementById('notif-toggle');
+    if (btn) {
+        btn.textContent = notificationsEnabled ? '🔔 ON' : '🔕 OFF';
+        btn.style.background = notificationsEnabled ? '#27ae60' : '#95a5a6';
+    }
+}
+
+let notifInterval = null;
+function startNotifPolling() {
+    if (notifInterval) clearInterval(notifInterval);
+    notifInterval = setInterval(checkNewSignalements, 30000);
+}
+
+async function checkNewSignalements() {
+    if (!notificationsEnabled) return;
+    try {
+        const res = await fetch(`${API}/api/signalements/new?since=${encodeURIComponent(lastCheck)}&lat=${userLat}&lng=${userLng}&rayon=100`);
+        const newSignals = await res.json();
+        if (newSignals.length > 0) {
+            lastCheck = new Date().toISOString();
+            newSignals.forEach(s => {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('Nouveau signalement', {
+                        body: `${getTypeLabel(s.type)} — ${s.commune || ''}\n${s.description || ''}`,
+                        icon: '/manifest.json'
+                    });
+                }
+            });
+            loadData();
+        }
+    } catch (e) {}
+}
 
 async function pollImportStatus() {
     try {
