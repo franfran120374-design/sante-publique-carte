@@ -325,11 +325,11 @@ async function loadAproposStats() {
     try {
         const res = await fetch(`${API}/api/stats/dashboard`);
         const data = await res.json();
-        document.getElementById('apro-etabs').textContent = (data.total_etabs || 0).toLocaleString('fr-FR');
-        document.getElementById('apro-profs').textContent = (data.total_profs || 0).toLocaleString('fr-FR');
-        document.getElementById('apro-signals').textContent = (data.total_signalements || 0).toLocaleString('fr-FR');
-        const depts = data.par_departement ? [...new Set(data.par_departement.map(d => d.departement))].length : 0;
-        document.getElementById('apro-depts').textContent = depts || '101';
+        const r = data.resume || {};
+        document.getElementById('apro-etabs').textContent = (parseInt(r.etablissements) || 0).toLocaleString('fr-FR');
+        document.getElementById('apro-profs').textContent = (parseInt(r.professionnels) || 0).toLocaleString('fr-FR');
+        document.getElementById('apro-signals').textContent = (parseInt(r.signalements) || 0).toLocaleString('fr-FR');
+        document.getElementById('apro-depts').textContent = (parseInt(r.departements) || 101).toLocaleString('fr-FR');
     } catch (e) {}
 }
             });

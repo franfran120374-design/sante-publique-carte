@@ -49,11 +49,16 @@ module.exports = function(db) {
                 LIMIT 10
             `).all();
 
+            const deptCount = await db.prepare(`
+                SELECT COUNT(DISTINCT departement) as count FROM etablissements WHERE departement IS NOT NULL AND departement != ''
+            `).get();
+
             res.json({
                 resume: {
                     etablissements: totalEtablissements,
                     professionnels: totalProfessionnels,
-                    signalements: totalSignalements
+                    signalements: totalSignalements,
+                    departements: deptCount ? deptCount.count : 0
                 },
                 signalements_par_type: signalementsParType,
                 top_departements_signalements: deptSignalements,
