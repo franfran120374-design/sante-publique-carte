@@ -602,21 +602,23 @@ function initLayers() {
 async function loadDeptOverlay() {
     if (deptGeoLayer) { deptGeoLayer.addTo(map); return; }
     try {
-        const [geoRes, densRes] = await Promise.all([
+        const [geoRes, dashRes] = await Promise.all([
             fetch('/data/departements.geojson'),
-            fetch(`${API}/api/stats/densite-depts`)
+            fetch(`${API}/api/stats/dashboard`)
         ]);
         const geo = await geoRes.json();
-        const dens = await densRes.json();
-        deptDensityData = dens;
+        const dash = await dashRes.json();
 
-        const profCounts = Object.values(dens.professionnels || {});
+        const profByDept = dash.profs_par_departement || {};
+        deptDensityData = { professionnels: profByDept };
+
+        const profCounts = Object.values(profByDept);
         const maxProfs = Math.max(...profCounts, 1);
 
         deptGeoLayer = L.geoJSON(geo, {
             style: feature => {
                 const code = feature.properties.code;
-                const profs = dens.professionnels[code] || 0;
+                const profs = profByDept[code] || 0;
                 const ratio = profs / maxProfs;
                 const r = Math.round(39 + (231 - 39) * (1 - ratio));
                 const g = Math.round(174 - 80 * ratio);
@@ -631,12 +633,10 @@ async function loadDeptOverlay() {
             },
             onEachFeature: (feature, layer) => {
                 const code = feature.properties.code;
-                const profs = dens.professionnels[code] || 0;
-                const etabs = dens.etablissements[code] || 0;
+                const profs = profByDept[code] || 0;
                 layer.bindPopup(`
                     <strong>${feature.properties.nom}</strong> (${code})<br>
-                    ${profs.toLocaleString('fr-FR')} professionnels<br>
-                    ${etabs.toLocaleString('fr-FR')} établissements
+                    ${profs.toLocaleString('fr-FR')} professionnels
                 `);
             }
         }).addTo(map);

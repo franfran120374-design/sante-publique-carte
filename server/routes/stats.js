@@ -53,6 +53,16 @@ module.exports = function(db) {
                 SELECT COUNT(DISTINCT departement) as count FROM etablissements WHERE departement IS NOT NULL AND departement != ''
             `).get();
 
+            const profsParDept = await db.prepare(`
+                SELECT departement, COUNT(*) as total
+                FROM professionnels
+                WHERE departement IS NOT NULL AND departement != ''
+                GROUP BY departement
+            `).all();
+
+            const profMap = {};
+            profsParDept.forEach(p => { profMap[p.departement] = parseInt(p.total); });
+
             res.json({
                 resume: {
                     etablissements: totalEtablissements,
@@ -64,7 +74,8 @@ module.exports = function(db) {
                 top_departements_signalements: deptSignalements,
                 professions_top: profsParProfession,
                 types_etablissements: etabsParType,
-                signalements_recents: signalementsRecents
+                signalements_recents: signalementsRecents,
+                profs_par_departement: profMap
             });
         } catch (err) {
             console.error('Erreur dashboard:', err);
