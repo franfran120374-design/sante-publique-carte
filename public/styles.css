@@ -337,6 +337,25 @@ textarea:focus {
     text-align: center;
 }
 
+.dept-legend {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    font-size: 12px;
+    line-height: 1.6;
+}
+.dept-legend strong { font-size: 13px; }
+.dept-legend span {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 4px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
 .btn-primary {
     width: 100%;
     padding: 1rem;

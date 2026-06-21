@@ -649,6 +649,7 @@ function initLayers() {
             if (e.target.checked) {
                 await loadDeptOverlay();
             } else if (deptGeoLayer) {
+                if (deptGeoLayer._legend) map.removeControl(deptGeoLayer._legend);
                 map.removeLayer(deptGeoLayer);
                 deptGeoLayer = null;
             }
@@ -669,34 +670,91 @@ async function loadDeptOverlay() {
         const profByDept = dash.profs_par_departement || {};
         deptDensityData = { professionnels: profByDept };
 
-        const profCounts = Object.values(profByDept);
-        const maxProfs = Math.max(...profCounts, 1);
+        const POP = {
+            '01':660998,'02':527469,'03':337204,'04':167176,'05':140976,'06':1103699,
+            '07':333049,'08':279232,'09':152571,'10':311765,'11':373921,'12':278962,
+            '13':2073929,'14':691950,'15':143755,'16':371971,'17':644367,'18':299072,
+            '19':240267,'21':536405,'22':601736,'23':118483,'24':419321,'25':547106,
+            '26':498227,'27':609553,'28':437664,'29':921828,'30':752017,'31':1412367,
+            '32':193361,'33':1653483,'34':1201600,'35':1098383,'36':218023,'37':614115,
+            '38':1264978,'39':258711,'40':426246,'41':330571,'42':773632,'43':229072,
+            '44':1450920,'45':690419,'46':171404,'47':331851,'48':76623,'49':818195,
+            '50':498261,'51':564022,'52':176442,'53':303731,'54':729460,'55':182024,
+            '56':756603,'57':1046526,'58':205835,'59':2617939,'60':808688,'61':282496,
+            '62':1489884,'63':660633,'64':682624,'65':229501,'66':482383,'67':1133453,
+            '68':786535,'69':1850073,'70':238380,'71':550896,'72':570478,'73':439503,
+            '74':837100,'75':2133111,'76':1258610,'77':1410031,'78':1454367,'79':374594,
+            '80':567216,'81':391364,'82':276520,'83':1112786,'84':563197,'85':696255,
+            '86':442633,'87':378098,'88':362898,'89':332590,'90':142293,'91':1284728,
+            '92':1690890,'93':1682594,'94':1397222,'95':1238179,'2A':157347,'2B':182402,
+            '971':382701,'972':371249,'973':286750,'974':880730,'976':216715
+        };
+
+        const totalProfs = Object.values(profByDept).reduce((s, v) => s + v, 0);
+        const totalPop = Object.values(POP).reduce((s, v) => s + v, 0);
+        const nationalDensity = totalProfs / (totalPop / 100000);
+
+        const deptColors = {};
+        const deptStats = {};
+        for (const [code, profs] of Object.entries(profByDept)) {
+            const pop = POP[code] || 100000;
+            const density = profs / (pop / 100000);
+            const ratio = density / nationalDensity;
+            deptStats[code] = { profs, pop, density: Math.round(density), ratio: Math.round(ratio * 100) };
+            let color;
+            if (ratio < 0.3) color = '#8b0000';
+            else if (ratio < 0.5) color = '#e74c3c';
+            else if (ratio < 0.7) color = '#f39c12';
+            else if (ratio < 1.0) color = '#f1c40f';
+            else if (ratio < 1.3) color = '#2ecc71';
+            else color = '#27ae60';
+            deptColors[code] = color;
+        }
 
         deptGeoLayer = L.geoJSON(geo, {
             style: feature => {
                 const code = feature.properties.code;
-                const profs = profByDept[code] || 0;
-                const ratio = profs / maxProfs;
-                const r = Math.round(39 + (231 - 39) * (1 - ratio));
-                const g = Math.round(174 - 80 * ratio);
-                const b = Math.round(96 + 100 * (1 - ratio));
                 return {
-                    fillColor: `rgb(${r},${g},${b})`,
+                    fillColor: deptColors[code] || '#ccc',
                     weight: 1,
                     opacity: 0.6,
                     color: '#fff',
-                    fillOpacity: 0.35
+                    fillOpacity: 0.45
                 };
             },
             onEachFeature: (feature, layer) => {
                 const code = feature.properties.code;
-                const profs = profByDept[code] || 0;
-                layer.bindPopup(`
-                    <strong>${feature.properties.nom}</strong> (${code})<br>
-                    ${profs.toLocaleString('fr-FR')} professionnels
-                `);
+                const s = deptStats[code];
+                if (s) {
+                    const verdict = s.ratio < 0.5 ? '🔴 Désert médical' : s.ratio < 0.8 ? '🟠 Sous-doté' : s.ratio < 1.2 ? '🟡 Moyen' : '🟢 Bien doté';
+                    layer.bindPopup(`
+                        <strong>${feature.properties.nom}</strong> (${code})<br>
+                        ${s.profs.toLocaleString('fr-FR')} professionnels<br>
+                        ~${s.pop.toLocaleString('fr-FR')} habitants<br>
+                        <strong>${s.density} pros / 100k hab</strong><br>
+                        <span style="font-size:1.1em">${verdict}</span>
+                    `);
+                }
             }
         }).addTo(map);
+
+        const legend = L.control({ position: 'bottomleft' });
+        legend.onAdd = function() {
+            const div = L.DomUtil.create('div', 'dept-legend');
+            div.innerHTML = `
+                <strong>Déserts médicaux</strong><br>
+                <small>pros / 100k hab vs national</small><br>
+                <span style="background:#8b0000"></span> &lt;30% 🔴<br>
+                <span style="background:#e74c3c"></span> 30-50%<br>
+                <span style="background:#f39c12"></span> 50-70%<br>
+                <span style="background:#f1c40f"></span> 70-100%<br>
+                <span style="background:#2ecc71"></span> 100-130%<br>
+                <span style="background:#27ae60"></span> &gt;130% 🟢
+            `;
+            return div;
+        };
+        legend.addTo(map);
+        deptGeoLayer._legend = legend;
     } catch (e) {
         console.error('Erreur chargement GeoJSON:', e);
     }
