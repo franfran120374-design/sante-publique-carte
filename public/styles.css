@@ -616,44 +616,64 @@ footer a {
 
 /* Responsive */
 @media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
+    #main-header { padding: 6px 0; }
+    .header-content { flex-direction: column; gap: 4px; }
+    .logo h1 { font-size: 1.1rem; }
+    .logo-icon { font-size: 1.2rem; }
 
     .main-nav {
         width: 100%;
         overflow-x: auto;
-        justify-content: center;
+        justify-content: flex-start;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
     }
+    .main-nav::-webkit-scrollbar { display: none; }
 
     .nav-btn {
-        font-size: 0.8rem;
-        padding: 0.4rem 0.8rem;
+        font-size: 0.7rem;
+        padding: 6px 10px;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
-    .map-controls {
-        max-width: calc(100% - 2rem);
-        left: 1rem;
-        right: 1rem;
-    }
+    .map-controls { max-width: calc(100% - 1rem); left: 0.5rem; right: 0.5rem; top: 10px; }
+    .search-box { width: 100%; }
+    .search-box input { font-size: 14px; padding: 8px 12px; }
 
-    .search-box {
-        width: 100%;
-    }
+    .layer-controls { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+    .layer-toggle { font-size: 0.65rem; padding: 3px 6px; background: rgba(255,255,255,0.92); border-radius: 4px; }
+    .layer-dot { width: 8px; height: 8px; }
 
-    .layer-controls {
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
+    .fab { width: 38px; height: 38px; font-size: 16px; }
+    #locate-btn { bottom: 120px; }
+    #notif-toggle { bottom: 70px; }
 
-    .type-selector {
-        grid-template-columns: 1fr;
-    }
+    .map-info { font-size: 0.7rem; padding: 4px 10px; bottom: 8px; }
 
-    .location-inputs {
-        flex-direction: column;
-    }
+    .form-container { padding: 15px; }
+    .form-container h2 { font-size: 1.1rem; }
+    .type-selector { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .type-btn { padding: 10px 8px; font-size: 0.8rem; }
+    .type-icon { font-size: 1.2rem; }
+    .form-group label { font-size: 0.8rem; }
+
+    .detail-panel { width: 100%; padding: 15px; }
+    .detail-panel h2 { font-size: 16px; }
+
+    .filters-panel { width: calc(100% - 20px); left: 10px; top: 55px; }
+
+    .apropos-stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .apropos-stat-value { font-size: 18px; }
+    .apropos-container { padding: 12px; }
+    .apropos-card { padding: 15px; }
+
+    .dept-legend { font-size: 10px; padding: 6px 8px; }
+
+    .share-section { gap: 4px; }
+    .share-btn { padding: 4px 8px; font-size: 10px; }
+
+    footer p { font-size: 0.7rem; }
 }
 
 /* Loading */
@@ -1049,4 +1069,6 @@ footer a {
     .detail-panel { width: 100%; }
     .filters-panel { width: calc(100% - 20px); left: 10px; }
     .apropos-stats { grid-template-columns: repeat(2, 1fr); }
+    .location-inputs { flex-wrap: wrap; }
+    .location-inputs button { flex: 1; min-width: 120px; }
 }
