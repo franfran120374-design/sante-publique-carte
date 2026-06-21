@@ -81,7 +81,13 @@ async function checkNewSignalements() {
                     new Notification('Nouveau signalement', {
                         body: `${getTypeLabel(s.type)} — ${s.commune || ''}\n${s.description || ''}`,
                         icon: '/manifest.json'
-    });
+                    });
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Polling error:', err);
+    }
 }
 
 function openDetailPanel(data, type) {
