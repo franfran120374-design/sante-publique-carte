@@ -317,6 +317,26 @@ textarea:focus {
     flex: 1;
 }
 
+.location-info {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #eaf6ff;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: #2980b9;
+}
+
+.signal-success {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #d4edda;
+    border: 1px solid #27ae60;
+    border-radius: var(--radius);
+    color: #155724;
+    font-weight: 600;
+    text-align: center;
+}
+
 .btn-primary {
     width: 100%;
     padding: 1rem;

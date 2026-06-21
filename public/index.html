@@ -126,7 +126,13 @@
                             <input type="number" id="signal-lat" step="any" placeholder="Latitude" readonly>
                             <input type="number" id="signal-lng" step="any" placeholder="Longitude" readonly>
                             <button type="button" id="get-location-btn" class="btn-secondary">Géolocaliser</button>
+                            <button type="button" id="pick-map-btn" class="btn-secondary" style="background:#9b59b6">📍 Cliquer sur la carte</button>
                         </div>
+                        <div id="signal-location-info" class="location-info" style="display:none"></div>
+                    </div>
+
+                    <div id="signal-success" class="signal-success" style="display:none">
+                        ✅ Signalement envoyé ! Merci pour votre contribution.
                     </div>
 
                     <button type="submit" class="btn-primary" id="submit-signal">

@@ -2,6 +2,7 @@ const API = '';
 let map, markers = { etabs: [], profs: [], signals: [], search: [] };
 let userLat = 46.603354, userLng = 1.888334;
 let selectedType = null;
+let signalPickerActive = false;
 
 let notificationsEnabled = false;
 let lastCheck = new Date().toISOString();
@@ -182,7 +183,7 @@ function closeDetailPanel() {
 function initDetailPanel() {
     document.getElementById('detail-close').addEventListener('click', closeDetailPanel);
     map.on('click', (e) => {
-        if (!pickerMode) closeDetailPanel();
+        if (!pickerMode && !signalPickerActive) closeDetailPanel();
     });
 }
 
@@ -431,10 +432,36 @@ function initForm() {
 
     document.getElementById('get-location-btn').addEventListener('click', () => {
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                document.getElementById('signal-lat').value = pos.coords.latitude.toFixed(6);
-                document.getElementById('signal-lng').value = pos.coords.longitude.toFixed(6);
+            navigator.geolocation.getCurrentPosition(async pos => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                document.getElementById('signal-lat').value = lat.toFixed(6);
+                document.getElementById('signal-lng').value = lng.toFixed(6);
+                await reverseGeocode(lat, lng);
             });
+        }
+    });
+
+    let signalPickerMode = false;
+    document.getElementById('pick-map-btn').addEventListener('click', () => {
+        signalPickerActive = !signalPickerActive;
+        signalPickerMode = signalPickerActive;
+        const btn = document.getElementById('pick-map-btn');
+        btn.textContent = signalPickerActive ? '✅ Cliquez sur la carte' : '📍 Cliquer sur la carte';
+        btn.style.background = signalPickerActive ? '#27ae60' : '#9b59b6';
+        document.getElementById('map').style.cursor = signalPickerActive ? 'crosshair' : '';
+    });
+
+    map.on('click', async (e) => {
+        if (signalPickerActive) {
+            document.getElementById('signal-lat').value = e.latlng.lat.toFixed(6);
+            document.getElementById('signal-lng').value = e.latlng.lng.toFixed(6);
+            signalPickerActive = false;
+            signalPickerMode = false;
+            document.getElementById('pick-map-btn').textContent = '📍 Cliquer sur la carte';
+            document.getElementById('pick-map-btn').style.background = '#9b59b6';
+            document.getElementById('map').style.cursor = '';
+            await reverseGeocode(e.latlng.lat, e.latlng.lng);
         }
     });
 
@@ -442,12 +469,18 @@ function initForm() {
         e.preventDefault();
         if (!selectedType) return alert('Selectionnez un type de signal');
 
+        const locInfo = document.getElementById('signal-location-info');
+        const communeText = locInfo.dataset.commune || null;
+        const deptText = locInfo.dataset.dept || null;
+
         const data = {
             type: selectedType,
             description: document.getElementById('description').value,
             duree_attente_min: document.getElementById('duree').value ? parseInt(document.getElementById('duree').value) : null,
             latitude: parseFloat(document.getElementById('signal-lat').value),
             longitude: parseFloat(document.getElementById('signal-lng').value),
+            commune: communeText,
+            departement: deptText,
             auteur_pseudo: document.getElementById('pseudo').value || null
         };
 
@@ -459,15 +492,39 @@ function initForm() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            alert('Signalement envoye ! Merci.');
+            const success = document.getElementById('signal-success');
+            success.style.display = 'block';
+            setTimeout(() => { success.style.display = 'none'; }, 5000);
             document.getElementById('signal-form').reset();
             document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
             selectedType = null;
+            locInfo.style.display = 'none';
+            locInfo.dataset.commune = '';
+            locInfo.dataset.dept = '';
             loadData();
         } catch (err) {
             alert("Erreur d'envoi");
         }
     });
+}
+
+async function reverseGeocode(lat, lng) {
+    try {
+        const res = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lng}&lat=${lat}&limit=1`);
+        const data = await res.json();
+        const info = document.getElementById('signal-location-info');
+        if (data.features && data.features.length > 0) {
+            const props = data.features[0].properties;
+            const city = props.city || props.town || props.village || '';
+            const postcode = props.postcode || '';
+            const dept = postcode.substring(0, 2) === '97' || postcode.substring(0, 2) === '2A' || postcode.substring(0, 2) === '2B'
+                ? postcode.substring(0, 3) : postcode.substring(0, 2);
+            info.textContent = `📍 ${props.label || city}`;
+            info.dataset.commune = city;
+            info.dataset.dept = dept;
+            info.style.display = 'block';
+        }
+    } catch (e) {}
 }
 
 function initSearch() {
