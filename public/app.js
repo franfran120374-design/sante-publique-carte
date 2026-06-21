@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initAddForms();
     initDetailPanel();
     initFilters();
-    document.getElementById('filters-panel').classList.add('open');
 });
 
 function initNotifications() {
@@ -189,8 +188,22 @@ function initDetailPanel() {
 }
 
 function initFilters() {
-    document.getElementById('apply-filters').addEventListener('click', applyFilters);
+    document.getElementById('apply-filters').addEventListener('click', async () => {
+        await applyFilters();
+        document.getElementById('filters-panel').classList.remove('open');
+    });
     document.getElementById('filters-reset').addEventListener('click', resetFilters);
+    document.getElementById('filters-close').addEventListener('click', () => {
+        document.getElementById('filters-panel').classList.remove('open');
+    });
+
+    const toggleBtn = document.getElementById('filters-toggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const panel = document.getElementById('filters-panel');
+            panel.classList.toggle('open');
+        });
+    }
 
     const rayonSlider = document.getElementById('filter-rayon');
     rayonSlider.addEventListener('input', () => {
@@ -242,9 +255,19 @@ async function applyFilters() {
     const specialite = document.getElementById('filter-specialite').value;
     const type = document.getElementById('filter-type').value;
     const rayon = document.getElementById('filter-rayon').value;
+    const sect1 = document.getElementById('filter-sect1').checked;
+    const sect2 = document.getElementById('filter-sect2').checked;
+    const sect3 = document.getElementById('filter-sect3').checked;
+    const secteurs = [sect1 ? '1' : null, sect2 ? '2' : null, sect3 ? '3' : null].filter(Boolean).join(',');
 
-    let url = `${API}/api/data/etablissements?rayon=${rayon}&limit=5000`;
-    let profUrl = `${API}/api/data/professionnels?rayon=${rayon}&limit=5000`;
+    let lat = userLat, lng = userLng;
+    if (dept && deptsCoords[dept]) {
+        lat = deptsCoords[dept].lat;
+        lng = deptsCoords[dept].lng;
+    }
+
+    let url = `${API}/api/data/etablissements?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=5000`;
+    let profUrl = `${API}/api/data/professionnels?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=5000`;
 
     if (dept) {
         url += `&departement=${dept}`;
@@ -258,8 +281,13 @@ async function applyFilters() {
             fetch(url),
             fetch(profUrl)
         ]);
-        const etabs = await etabsRes.json();
-        const profs = await profsRes.json();
+        let etabs = await etabsRes.json();
+        let profs = await profsRes.json();
+
+        if (secteurs && secteurs !== '1,2,3') {
+            const sectArr = secteurs.split(',');
+            profs = profs.filter(p => sectArr.includes(String(p.secteur)));
+        }
 
         clearMarkers();
         renderEtablissements(etabs);
@@ -270,6 +298,8 @@ async function applyFilters() {
 
         if (dept && deptsCoords[dept]) {
             map.flyTo([deptsCoords[dept].lat, deptsCoords[dept].lng], 9);
+        } else {
+            map.setView([lat, lng], 7);
         }
     } catch (err) {
         console.error('Filter error:', err);
@@ -332,11 +362,6 @@ async function loadAproposStats() {
         document.getElementById('apro-profs').textContent = (parseInt(r.professionnels) || 0).toLocaleString('fr-FR');
         document.getElementById('apro-signals').textContent = (parseInt(r.signalements) || 0).toLocaleString('fr-FR');
         document.getElementById('apro-depts').textContent = (parseInt(r.departements) || 101).toLocaleString('fr-FR');
-    } catch (e) {}
-}
-            });
-            loadData();
-        }
     } catch (e) {}
 }
 
@@ -551,7 +576,7 @@ function initSearch() {
                 return;
             }
 
-            let html = `<div style="padding:8px 10px;font-weight:bold;border-bottom:1px solid #eee;">${results.length} resultat(s) pour "${q}"</div>`;
+            let html = `<div style="padding:8px 10px;font-weight:bold;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">${results.length} resultat(s) pour "${q}" <button onclick="closeSearchResults()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">&times;</button></div>`;
 
             results.forEach(r => {
                 const icon = r.source === 'etablissement' ? '🏥' : '👨‍⚕️';
@@ -618,9 +643,20 @@ function createSearchResults() {
     return div;
 }
 
+function closeSearchResults() {
+    const div = document.getElementById('search-results');
+    if (div) {
+        div.style.display = 'none';
+        div.innerHTML = '';
+    }
+    clearSearchMarkers();
+}
+
 window.zoomToResult = (lat, lng) => {
     if (lat && lng) map.setView([lat, lng], 15);
 };
+
+window.closeSearchResults = closeSearchResults;
 
 function clearSearchMarkers() {
     markers.search.forEach(m => map.removeLayer(m));
