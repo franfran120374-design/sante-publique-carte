@@ -24,7 +24,7 @@ async function startServer() {
     app.use('/api/data', dataRoutes(db));
     app.use('/api/stats', statsRoutes(db));
 
-    if (db.isPG) {
+    if (db.isPG && !db.isTurso) {
         const importRealRoutes = require('./routes/import-real');
         app.use('/api/admin', importRealRoutes(db.pool));
     }
@@ -41,6 +41,9 @@ async function startServer() {
 
     // Re-import trigger (for Render deployments)
     app.post('/api/admin/reimport', (req, res) => {
+        if (db.isTurso) {
+            return res.status(400).json({ message: 'Import non disponible avec Turso. Données déjà migrées.' });
+        }
         const { spawn } = require('child_process');
         const logFile = path.join(__dirname, 'import.log');
         const logStream = fs.createWriteStream(logFile, { flags: 'a' });
