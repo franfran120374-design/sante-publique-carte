@@ -1021,6 +1021,9 @@ function getUserLocation() {
 const DEPTS = ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','2A','2B','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50','51','52','53','54','55','56','57','58','59','60','61','62','63','64','65','66','67','68','69','70','71','72','73','74','75','76','77','78','79','80','81','82','83','84','85','86','87','88','89','90','91','92','93','94','95','971','972','973','974','976'];
 
 async function loadData() {
+    const splash = document.getElementById('splash');
+    const splashBar = document.getElementById('splash-bar-fill');
+    const splashStatus = document.getElementById('splash-status');
     const progressEl = document.getElementById('load-progress');
     const barEl = document.getElementById('load-bar');
     const textEl = document.getElementById('load-text');
@@ -1029,6 +1032,8 @@ async function loadData() {
     textEl.textContent = 'Chargement...';
 
     try {
+        splashStatus.textContent = 'Récupération des signalements...';
+        splashBar.style.width = '5%';
         const signalsRes = await fetch(`${API}/api/signalements?rayon=2000`);
         const signals = await signalsRes.json();
         clearMarkers();
@@ -1047,8 +1052,14 @@ async function loadData() {
         let totalEtabs = 0;
         let totalProfs = 0;
 
-        textEl.textContent = `Chargement de votre zone (${nearbyDepts.length} depts)...`;
-        for (const d of nearbyDepts) {
+        splashStatus.textContent = `Chargement de votre zone (${nearbyDepts.length} départements)...`;
+        for (let i = 0; i < nearbyDepts.length; i++) {
+            const d = nearbyDepts[i];
+            const pct = Math.round(5 + (i / nearbyDepts.length) * 60);
+            splashBar.style.width = pct + '%';
+            splashStatus.textContent = `Département ${d} — ${totalEtabs} étab. · ${totalProfs} profs`;
+            textEl.textContent = splashStatus.textContent;
+            barEl.style.width = pct + '%';
             try {
                 const [etabs, profs] = await Promise.all([
                     fetch(`${API}/api/data/etablissements?departement=${d}&limit=5000&all=true`).then(r => r.json()),
@@ -1065,9 +1076,14 @@ async function loadData() {
             } catch (e) { console.error(`Dept ${d} error:`, e.message); }
         }
 
+        splashBar.style.width = '70%';
+        splashStatus.textContent = `Zone chargée ✓ — ${totalEtabs} étab. · ${totalProfs} profs`;
+        textEl.textContent = 'Zone proche chargée ✓ — chargement reste en arrière-plan...';
         barEl.style.width = '100%';
-        textEl.textContent = `Zone proche chargée ✓ — ${totalEtabs} étab. · ${totalProfs} profs — chargement reste en arrière-plan...`;
         setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+
+        splash.classList.add('fade-out');
+        setTimeout(() => { splash.remove(); }, 700);
 
         for (let i = 0; i < restDepts.length; i++) {
             const d = restDepts[i];
@@ -1084,6 +1100,8 @@ async function loadData() {
                 document.getElementById('count-profs').textContent = totalProfs;
                 autoGeocode('etablissements', etabs);
                 autoGeocode('professionnels', profs);
+            } catch (e) { console.error(`Dept ${d} error:`, e.message); }
+        }
             } catch (e) { console.error(`Dept ${d} error:`, e.message); }
         }
 

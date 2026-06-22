@@ -13,6 +13,45 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+    <div id="splash" class="splash-overlay">
+        <div class="splash-card">
+            <div class="splash-logo">🏥</div>
+            <h1>SantéPublique<span class="accent">.carte</span></h1>
+            <p class="splash-subtitle">Cartographie participative de l'accès aux soins</p>
+
+            <div class="splash-features">
+                <div class="splash-feature">
+                    <span>🗺️</span>
+                    <div>
+                        <strong>106 775 établissements</strong>
+                        <small>Hôpitaux, cliniques, pharmacies, laboratoires...</small>
+                    </div>
+                </div>
+                <div class="splash-feature">
+                    <span>👨‍⚕️</span>
+                    <div>
+                        <strong>550 485 professionnels</strong>
+                        <small>Médecins, infirmiers, kinés, dentistes...</small>
+                    </div>
+                </div>
+                <div class="splash-feature">
+                    <span>📢</span>
+                    <div>
+                        <strong>Signalements citoyens</strong>
+                        <small>Attentes, fermetures, satisfaction des usagers</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="splash-progress">
+                <div class="splash-bar"><div id="splash-bar-fill" class="splash-bar-fill"></div></div>
+                <p id="splash-status">Connexion à la base de données...</p>
+            </div>
+
+            <p class="splash-info">Données ouvertes (FINESS + Ameli) · Géocoding BAN en temps réel</p>
+        </div>
+    </div>
+
     <header id="main-header">
         <div class="header-content">
             <div class="logo">
