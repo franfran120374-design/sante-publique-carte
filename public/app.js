@@ -747,7 +747,9 @@ function initSearch() {
 
             results.forEach(r => {
                 const icon = r.source === 'etablissement' ? '🏥' : '👨‍⚕️';
+                const displayName = r.source === 'professionnel' && r.prenom ? `${escapeHtml(r.prenom)} ${escapeHtml(r.name || '')}` : escapeHtml(r.name || '');
                 const typeBadge = r.categorie ? `<span style="background:${r.source === 'etablissement' ? '#3498db' : '#e67e22'};color:white;padding:1px 6px;border-radius:3px;font-size:10px">${escapeHtml(r.categorie)}</span>` : '';
+                const specBadge = r.specialite && r.specialite !== r.categorie ? `<span style="color:#888;font-size:11px;margin-left:4px">${escapeHtml(r.specialite)}</span>` : '';
                 const address = r.adresse ? `<br><small style="color:#666">📍 ${escapeHtml(r.adresse)}</small>` : '';
                 const phone = r.telephone ? `<br><small style="color:#3498db">📞 ${escapeHtml(r.telephone)}</small>` : '';
                 const dept = r.departement ? `<small style="color:#999"> · ${escapeHtml(r.departement)}</small>` : '';
@@ -756,8 +758,8 @@ function initSearch() {
                 html += `<div class="search-item" onclick="zoomToResult(${r.latitude},${r.longitude}, '${r.source}', '${escapeHtml(r.id)}')">
                     <span>${icon}</span>
                     <div>
-                        <strong>${escapeHtml(r.name || '')}</strong>
-                        ${typeBadge}${dist}
+                        <strong>${displayName}</strong>
+                        ${typeBadge}${specBadge}${dist}
                         ${address}
                         ${phone}
                         <small>${escapeHtml(r.commune || '')} ${escapeHtml(r.code_postal || '')}${dept}</small>

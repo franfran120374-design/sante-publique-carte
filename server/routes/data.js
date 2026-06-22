@@ -175,9 +175,9 @@ module.exports = function(db) {
             let results = [];
 
             try {
-                let query = `SELECT 'etablissement' as source, id, nom as name, type as categorie, adresse, code_postal, commune, departement, telephone, source as source_type, latitude, longitude FROM etablissements WHERE nom ILIKE $1 OR type ILIKE $2 OR commune ILIKE $3 OR adresse ILIKE $4`;
-                let params = [searchTerm, searchTerm, searchTerm, searchTerm];
-                let idx = 5;
+                let query = `SELECT 'etablissement' as source, id, nom as name, type as categorie, adresse, code_postal, commune, departement, telephone, source as source_type, latitude, longitude FROM etablissements WHERE nom ILIKE $1 OR type ILIKE $2 OR commune ILIKE $3 OR adresse ILIKE $4 OR code_postal ILIKE $5`;
+                let params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
+                let idx = 6;
 
                 if (lat && lng) {
                     const latNum = parseFloat(lat);
@@ -193,7 +193,7 @@ module.exports = function(db) {
                         params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
                     }
                 }
-                query += ' LIMIT 25';
+                query += ' LIMIT 50';
                 const etabs = await db.prepare(query).all(...params);
                 results = results.concat(etabs);
             } catch (e) {
@@ -201,9 +201,9 @@ module.exports = function(db) {
             }
 
             try {
-                let query = `SELECT 'professionnel' as source, id, nom as name, prenom, profession as categorie, specialite, secteur, accepte_carte_vitale, adresse, code_postal, commune, departement, source as source_type, latitude, longitude FROM professionnels WHERE nom ILIKE $1 OR profession ILIKE $2 OR specialite ILIKE $3 OR commune ILIKE $4`;
-                let params = [searchTerm, searchTerm, searchTerm, searchTerm];
-                let idx = 5;
+                let query = `SELECT 'professionnel' as source, id, nom as name, prenom, profession as categorie, specialite, secteur, accepte_carte_vitale, adresse, code_postal, commune, departement, source as source_type, latitude, longitude FROM professionnels WHERE nom ILIKE $1 OR prenom ILIKE $2 OR profession ILIKE $3 OR specialite ILIKE $4 OR commune ILIKE $5 OR adresse ILIKE $6 OR code_postal ILIKE $7`;
+                let params = [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm];
+                let idx = 8;
 
                 if (lat && lng) {
                     const latNum = parseFloat(lat);
@@ -219,7 +219,7 @@ module.exports = function(db) {
                         params.push(latNum - latDelta, latNum + latDelta, lngNum - lngDelta, lngNum + lngDelta);
                     }
                 }
-                query += ' LIMIT 25';
+                query += ' LIMIT 50';
                 const profs = await db.prepare(query).all(...params);
                 results = results.concat(profs);
             } catch (e) {
