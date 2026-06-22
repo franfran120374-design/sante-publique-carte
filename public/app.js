@@ -1026,7 +1026,7 @@ async function loadData() {
     const textEl = document.getElementById('load-text');
     progressEl.style.display = 'block';
     barEl.style.width = '0%';
-    textEl.textContent = 'Chargement des signalements...';
+    textEl.textContent = 'Chargement...';
 
     try {
         const signalsRes = await fetch(`${API}/api/signalements?rayon=2000`);
@@ -1035,14 +1035,20 @@ async function loadData() {
         renderSignalements(signals);
         document.getElementById('count-signals').textContent = signals.length;
 
+        const nearbyDepts = DEPTS.filter(d => {
+            const c = deptsCoords[d];
+            return c && haversine(userLat, userLng, c.lat, c.lng) < 150;
+        }).sort((a, b) => {
+            const ca = deptsCoords[a], cb = deptsCoords[b];
+            return haversine(userLat, userLng, ca.lat, ca.lng) - haversine(userLat, userLng, cb.lat, cb.lng);
+        });
+        const restDepts = DEPTS.filter(d => !nearbyDepts.includes(d));
+
         let totalEtabs = 0;
         let totalProfs = 0;
 
-        for (let i = 0; i < DEPTS.length; i++) {
-            const d = DEPTS[i];
-            const pct = Math.round((i / DEPTS.length) * 100);
-            barEl.style.width = pct + '%';
-            textEl.textContent = `Chargement dept ${d} (${i + 1}/${DEPTS.length}) — ${totalEtabs} étab. · ${totalProfs} profs`;
+        textEl.textContent = `Chargement de votre zone (${nearbyDepts.length} depts)...`;
+        for (const d of nearbyDepts) {
             try {
                 const [etabs, profs] = await Promise.all([
                     fetch(`${API}/api/data/etablissements?departement=${d}&limit=5000&all=true`).then(r => r.json()),
@@ -1054,14 +1060,28 @@ async function loadData() {
                 totalProfs += profs.length;
                 document.getElementById('count-etabs').textContent = totalEtabs;
                 document.getElementById('count-profs').textContent = totalProfs;
-            } catch (e) {
-                console.error(`Dept ${d} error:`, e.message);
-            }
+            } catch (e) { console.error(`Dept ${d} error:`, e.message); }
         }
 
         barEl.style.width = '100%';
-        textEl.textContent = `✓ Terminé — ${totalEtabs} établissements · ${totalProfs} professionnels · ${signals.length} signalements`;
-        setTimeout(() => { progressEl.style.display = 'none'; }, 4000);
+        textEl.textContent = `Zone proche chargée ✓ — ${totalEtabs} étab. · ${totalProfs} profs — chargement reste en arrière-plan...`;
+        setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+
+        for (let i = 0; i < restDepts.length; i++) {
+            const d = restDepts[i];
+            try {
+                const [etabs, profs] = await Promise.all([
+                    fetch(`${API}/api/data/etablissements?departement=${d}&limit=5000&all=true`).then(r => r.json()),
+                    fetch(`${API}/api/data/professionnels?departement=${d}&limit=5000`).then(r => r.json())
+                ]);
+                renderEtablissements(etabs);
+                renderProfessionnels(profs);
+                totalEtabs += etabs.length;
+                totalProfs += profs.length;
+                document.getElementById('count-etabs').textContent = totalEtabs;
+                document.getElementById('count-profs').textContent = totalProfs;
+            } catch (e) { console.error(`Dept ${d} error:`, e.message); }
+        }
 
     } catch (err) {
         console.error('Load error:', err);
