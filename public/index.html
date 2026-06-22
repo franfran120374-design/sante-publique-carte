@@ -25,6 +25,7 @@
                 <button class="nav-btn" data-view="ajouter">Ajouter</button>
                 <button class="nav-btn" data-view="stats">Stats</button>
                 <button class="nav-btn" data-view="dashboard">Institutions</button>
+                <button class="nav-btn" data-view="favoris">Favoris</button>
                 <button class="nav-btn" data-view="apropos">À propos</button>
             </nav>
         </div>
@@ -340,6 +341,13 @@
             </div>
         </section>
 
+        <!-- Vue Favoris -->
+        <section id="view-favoris" class="view">
+            <h2>⭐ Mes Favoris</h2>
+            <p style="color:#666;margin-bottom:12px;">Vos établissements et professionnels sauvegardés (stockés localement).</p>
+            <div id="favoris-list"></div>
+        </section>
+
         <!-- Vue À propos -->
         <section id="view-apropos" class="view">
             <div class="apropos-container">
@@ -454,10 +462,17 @@
             </select>
         </div>
         <div class="filter-group">
+            <label><input type="checkbox" id="filter-cv"> Carte Vitale acceptée uniquement</label>
+        </div>
+        <div class="filter-group">
             <label>Rayon : <span id="rayon-val">200</span> km</label>
             <input type="range" id="filter-rayon" min="10" max="500" value="200" step="10">
         </div>
         <button id="apply-filters" class="btn-primary">Appliquer</button>
+        <div class="filter-export" id="filter-export" style="display:none;margin-top:8px;">
+            <button id="export-etabs" class="btn-export">📥 Exporter Établissements (CSV)</button>
+            <button id="export-profs" class="btn-export">📥 Exporter Professionnels (CSV)</button>
+        </div>
     </div>
 
     <footer>

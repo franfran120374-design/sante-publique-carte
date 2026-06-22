@@ -1104,6 +1104,88 @@ footer a {
     color: var(--primary);
 }
 
+.detail-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.detail-top-row h2 {
+    margin: 0;
+    flex: 1;
+}
+
+.fav-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #f39c12;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.fav-btn:hover {
+    transform: scale(1.2);
+}
+
+.detail-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 12px;
+}
+
+.detail-dist {
+    background: #e8f8f0;
+    color: #27ae60;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.detail-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.detail-maps-btn {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13px;
+    background: var(--primary);
+    color: white;
+}
+
+.detail-dir-btn {
+    background: #27ae60;
+}
+
+.btn-export {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    margin-top: 4px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.btn-export:hover {
+    background: var(--bg);
+}
+
 @media (max-width: 768px) {
     .detail-panel { width: 100%; }
     .filters-panel { width: calc(100% - 20px); left: 10px; }

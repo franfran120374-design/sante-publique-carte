@@ -3,11 +3,85 @@ let map, markers = { etabs: [], profs: [], signals: [], search: [] };
 let clusterGroups = {};
 let userLat = 46.603354, userLng = 1.888334;
 let selectedType = null;
+
 let signalPickerActive = false;
 
 let notificationsEnabled = false;
 let lastCheck = new Date().toISOString();
 
+function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getFavorites() {
+    try { return JSON.parse(localStorage.getItem('sante_favs') || '[]'); } catch { return []; }
+}
+
+function toggleFavorite(item) {
+    const favs = getFavorites();
+    const idx = favs.findIndex(f => f.id === item.id);
+    if (idx >= 0) { favs.splice(idx, 1); } else { favs.push(item); }
+    localStorage.setItem('sante_favs', JSON.stringify(favs));
+    updateFavBtn(item.id);
+}
+
+function isFavorite(id) {
+    return getFavorites().some(f => f.id === id);
+}
+
+function updateFavBtn(id) {
+    const btn = document.querySelector(`.fav-btn[data-id="${id}"]`);
+    if (btn) btn.textContent = isFavorite(id) ? '★' : '☆';
+}
+
+function sortByDistance(items) {
+    return items.sort((a, b) => {
+        const dA = (a.latitude && a.longitude) ? haversine(userLat, userLng, a.latitude, a.longitude) : Infinity;
+        const dB = (b.latitude && b.longitude) ? haversine(userLat, userLng, b.latitude, b.longitude) : Infinity;
+        return dA - dB;
+    });
+}
+
+function exportCSV(items, type) {
+    if (!items.length) return;
+    const keys = Object.keys(items[0]);
+    const csv = [keys.join(',')].concat(items.map(r => keys.map(k => `"${String(r[k] || '').replace(/"/g, '""')}"`).join(','))).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `sante-publique-${type}-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+}
+
+let currentFilteredEtabs = [];
+let currentFilteredProfs = [];
+
+function renderFavoris() {
+    const favs = getFavorites();
+    const div = document.getElementById('favoris-list');
+    if (!div) return;
+    if (favs.length === 0) {
+        div.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">Aucun favori.<br>Cliquez sur ★ dans le panneau détail pour sauvegarder.</div>';
+        return;
+    }
+    div.innerHTML = favs.map(f => {
+        const icon = f.source === 'etablissement' ? '🏥' : '👨‍⚕️';
+        const dist = (f.lat && f.lng) ? haversine(userLat, userLng, f.lat, f.lng) : null;
+        const distStr = dist !== null ? ` · ${dist < 1 ? Math.round(dist * 1000) + ' m' : dist.toFixed(1) + ' km'}` : '';
+        return `<div class="search-item" style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;">${icon}</span>
+            <div style="flex:1;" onclick="window.open('https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lng}', '_blank')">
+                <strong>${escapeHtml(f.nom)}</strong>
+                <small style="color:#666;display:block;">${escapeHtml(f.type || '')}${distStr}</small>
+            </div>
+            <button class="fav-remove" onclick="toggleFavorite(${JSON.stringify(f).replace(/"/g, '&quot;')});renderFavoris();" style="background:none;border:none;color:#e74c3c;cursor:pointer;font-size:18px;">✕</button>
+        </div>`;
+    }).join('');
+}
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
     initNav();
@@ -95,10 +169,20 @@ function openDetailPanel(data, type) {
     const content = document.getElementById('detail-content');
 
     if (type === 'etablissement') {
+        const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.latitude},${data.longitude}`;
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
+        const dist = (data.latitude && data.longitude) ? haversine(userLat, userLng, data.latitude, data.longitude) : null;
+        const distStr = dist !== null ? `<span class="detail-dist">${dist < 1 ? Math.round(dist * 1000) + ' m' : dist.toFixed(1) + ' km'}</span>` : '';
+
         content.innerHTML = `
-            <h2>${escapeHtml(data.nom)}</h2>
-            <span class="detail-type-badge" style="background:#3498db">${escapeHtml(data.type || 'Établissement')}</span>
+            <div class="detail-top-row">
+                <h2>${escapeHtml(data.nom)}</h2>
+                <button class="fav-btn" data-id="${data.id}" onclick="toggleFavorite(${JSON.stringify({id:data.id,nom:data.nom,type:data.type||'',lat:data.latitude,lng:data.longitude,source:'etablissement'}).replace(/"/g,'&quot;')})">${isFavorite(data.id) ? '★' : '☆'}</button>
+            </div>
+            <div class="detail-badges">
+                <span class="detail-type-badge" style="background:#3498db">${escapeHtml(data.type || 'Établissement')}</span>
+                ${distStr}
+            </div>
 
             <div class="detail-section-title">Adresse</div>
             <div class="detail-info-row">
@@ -116,6 +200,25 @@ function openDetailPanel(data, type) {
                 <span class="detail-info-text"><a href="tel:${escapeHtml(data.telephone)}" class="detail-phone">${escapeHtml(data.telephone)}</a></span>
             </div>` : ''}
 
+            ${data.email ? `
+            <div class="detail-info-row">
+                <span class="detail-info-icon">✉️</span>
+                <span class="detail-info-text"><a href="mailto:${escapeHtml(data.email)}">${escapeHtml(data.email)}</a></span>
+            </div>` : ''}
+
+            ${data.site_web ? `
+            <div class="detail-info-row">
+                <span class="detail-info-icon">🌐</span>
+                <span class="detail-info-text"><a href="${escapeHtml(data.site_web)}" target="_blank" rel="noopener">Site web</a></span>
+            </div>` : ''}
+
+            ${data.horaires ? `
+            <div class="detail-section-title">Horaires</div>
+            <div class="detail-info-row">
+                <span class="detail-info-icon">🕐</span>
+                <span class="detail-info-text">${escapeHtml(data.horaires)}</span>
+            </div>` : ''}
+
             <div class="detail-section-title">Identifiant</div>
             <div class="detail-info-row">
                 <span class="detail-info-icon">🏷️</span>
@@ -130,16 +233,28 @@ function openDetailPanel(data, type) {
 
             ${data.source === 'user' ? '<span class="detail-source-badge">Ajouté par un citoyen</span>' : ''}
 
-            <a href="${mapsUrl}" target="_blank" rel="noopener" class="detail-maps-btn">📍 Y aller avec Google Maps</a>
+            <div class="detail-actions">
+                <a href="${dirUrl}" target="_blank" rel="noopener" class="detail-maps-btn detail-dir-btn">🧭 Itinéraire</a>
+                <a href="${mapsUrl}" target="_blank" rel="noopener" class="detail-maps-btn">📍 Maps</a>
+            </div>
         `;
     } else if (type === 'professionnel') {
+        const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.latitude},${data.longitude}`;
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         const secteurLabel = data.secteur ? `Secteur ${data.secteur}` : '';
         const cvLabel = data.accepte_carte_vitale ? 'Oui' : 'Non';
+        const dist = (data.latitude && data.longitude) ? haversine(userLat, userLng, data.latitude, data.longitude) : null;
+        const distStr = dist !== null ? `<span class="detail-dist">${dist < 1 ? Math.round(dist * 1000) + ' m' : dist.toFixed(1) + ' km'}</span>` : '';
 
         content.innerHTML = `
-            <h2>${escapeHtml(data.prenom || '')} ${escapeHtml(data.nom)}</h2>
-            <span class="detail-type-badge" style="background:#e67e22">${escapeHtml(data.profession || data.specialite || 'Professionnel')}</span>
+            <div class="detail-top-row">
+                <h2>${escapeHtml(data.prenom || '')} ${escapeHtml(data.nom)}</h2>
+                <button class="fav-btn" data-id="${data.id}" onclick="toggleFavorite(${JSON.stringify({id:data.id,nom:`${data.prenom||''} ${data.nom}`.trim(),type:data.profession||data.specialite||'',lat:data.latitude,lng:data.longitude,source:'professionnel'}).replace(/"/g,'&quot;')})">${isFavorite(data.id) ? '★' : '☆'}</button>
+            </div>
+            <div class="detail-badges">
+                <span class="detail-type-badge" style="background:#e67e22">${escapeHtml(data.profession || data.specialite || 'Professionnel')}</span>
+                ${distStr}
+            </div>
 
             <div class="detail-section-title">Adresse</div>
             <div class="detail-info-row">
@@ -166,6 +281,25 @@ function openDetailPanel(data, type) {
                 <span class="detail-info-text">Carte Vitale: ${cvLabel}</span>
             </div>
 
+            ${data.email ? `
+            <div class="detail-info-row">
+                <span class="detail-info-icon">✉️</span>
+                <span class="detail-info-text"><a href="mailto:${escapeHtml(data.email)}">${escapeHtml(data.email)}</a></span>
+            </div>` : ''}
+
+            ${data.site_web ? `
+            <div class="detail-info-row">
+                <span class="detail-info-icon">🌐</span>
+                <span class="detail-info-text"><a href="${escapeHtml(data.site_web)}" target="_blank" rel="noopener">Site web</a></span>
+            </div>` : ''}
+
+            ${data.horaires ? `
+            <div class="detail-section-title">Horaires</div>
+            <div class="detail-info-row">
+                <span class="detail-info-icon">🕐</span>
+                <span class="detail-info-text">${escapeHtml(data.horaires)}</span>
+            </div>` : ''}
+
             <div class="detail-section-title">Identifiant</div>
             <div class="detail-info-row">
                 <span class="detail-info-icon">🏷️</span>
@@ -174,7 +308,10 @@ function openDetailPanel(data, type) {
 
             ${data.source === 'user' ? '<span class="detail-source-badge">Ajouté par un citoyen</span>' : ''}
 
-            <a href="${mapsUrl}" target="_blank" rel="noopener" class="detail-maps-btn">📍 Y aller avec Google Maps</a>
+            <div class="detail-actions">
+                <a href="${dirUrl}" target="_blank" rel="noopener" class="detail-maps-btn detail-dir-btn">🧭 Itinéraire</a>
+                <a href="${mapsUrl}" target="_blank" rel="noopener" class="detail-maps-btn">📍 Maps</a>
+            </div>
         `;
     }
 
@@ -202,6 +339,9 @@ function initFilters() {
     document.getElementById('filters-close').addEventListener('click', () => {
         document.getElementById('filters-panel').classList.remove('open');
     });
+
+    document.getElementById('export-etabs').addEventListener('click', () => exportCSV(currentFilteredEtabs, 'etablissements'));
+    document.getElementById('export-profs').addEventListener('click', () => exportCSV(currentFilteredProfs, 'professionnels'));
 
     const toggleBtn = document.getElementById('filters-toggle');
     if (toggleBtn) {
@@ -265,6 +405,7 @@ async function applyFilters() {
     const sect2 = document.getElementById('filter-sect2').checked;
     const sect3 = document.getElementById('filter-sect3').checked;
     const secteurs = [sect1 ? '1' : null, sect2 ? '2' : null, sect3 ? '3' : null].filter(Boolean).join(',');
+    const cvOnly = document.getElementById('filter-cv').checked;
 
     let lat = userLat, lng = userLng;
     if (dept && deptsCoords[dept]) {
@@ -294,6 +435,17 @@ async function applyFilters() {
             const sectArr = secteurs.split(',');
             profs = profs.filter(p => sectArr.includes(String(p.secteur)));
         }
+        if (cvOnly) {
+            profs = profs.filter(p => p.accepte_carte_vitale);
+        }
+
+        etabs.forEach(e => { if (e.latitude && e.longitude) e._dist = haversine(lat, lng, e.latitude, e.longitude); });
+        profs.forEach(p => { if (p.latitude && p.longitude) p._dist = haversine(lat, lng, p.latitude, p.longitude); });
+        sortByDistance(etabs);
+        sortByDistance(profs);
+
+        currentFilteredEtabs = etabs;
+        currentFilteredProfs = profs;
 
         clearMarkers();
         renderEtablissements(etabs);
@@ -301,6 +453,9 @@ async function applyFilters() {
 
         document.getElementById('count-etabs').textContent = etabs.length;
         document.getElementById('count-profs').textContent = profs.length;
+
+        const exportDiv = document.getElementById('filter-export');
+        if (exportDiv) exportDiv.style.display = (etabs.length + profs.length) > 0 ? 'block' : 'none';
 
         if (dept && deptsCoords[dept]) {
             map.flyTo([deptsCoords[dept].lat, deptsCoords[dept].lng], 9);
@@ -446,6 +601,7 @@ function initNav() {
 
             if (view === 'stats') loadStats();
             if (view === 'apropos') loadAproposStats();
+            if (view === 'favoris') renderFavoris();
         });
     });
 }
@@ -582,6 +738,11 @@ function initSearch() {
                 return;
             }
 
+            results.forEach(r => {
+                if (r.latitude && r.longitude) r._dist = haversine(userLat, userLng, r.latitude, r.longitude);
+            });
+            results.sort((a, b) => (a._dist || Infinity) - (b._dist || Infinity));
+
             let html = `<div style="padding:8px 10px;font-weight:bold;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">${results.length} resultat(s) pour "${q}" <button onclick="closeSearchResults()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#999;">&times;</button></div>`;
 
             results.forEach(r => {
@@ -590,12 +751,13 @@ function initSearch() {
                 const address = r.adresse ? `<br><small style="color:#666">📍 ${escapeHtml(r.adresse)}</small>` : '';
                 const phone = r.telephone ? `<br><small style="color:#3498db">📞 ${escapeHtml(r.telephone)}</small>` : '';
                 const dept = r.departement ? `<small style="color:#999"> · ${escapeHtml(r.departement)}</small>` : '';
+                const dist = r._dist !== undefined ? `<small style="color:#27ae60;font-weight:600"> · ${r._dist < 1 ? Math.round(r._dist * 1000) + ' m' : r._dist.toFixed(1) + ' km'}</small>` : '';
 
                 html += `<div class="search-item" onclick="zoomToResult(${r.latitude},${r.longitude}, '${r.source}', '${escapeHtml(r.id)}')">
                     <span>${icon}</span>
                     <div>
                         <strong>${escapeHtml(r.name || '')}</strong>
-                        ${typeBadge}
+                        ${typeBadge}${dist}
                         ${address}
                         ${phone}
                         <small>${escapeHtml(r.commune || '')} ${escapeHtml(r.code_postal || '')}${dept}</small>
