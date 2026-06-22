@@ -1018,40 +1018,35 @@ function getUserLocation() {
     }
 }
 
+const DEPTS = ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','2A','2B','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50','51','52','53','54','55','56','57','58','59','60','61','62','63','64','65','66','67','68','69','70','71','72','73','74','75','76','77','78','79','80','81','82','83','84','85','86','87','88','89','90','91','92','93','94','95','971','972','973','974','976'];
+
 async function loadData() {
     try {
-        const [etabsRes, profsRes, signalsRes] = await Promise.all([
-            fetch(`${API}/api/data/etablissements?limit=200000&all=true`),
-            fetch(`${API}/api/data/professionnels?limit=200000`),
-            fetch(`${API}/api/signalements?rayon=2000`)
-        ]);
-
-        const allEtabs = await etabsRes.json();
-        const profs = await profsRes.json();
+        const signalsRes = await fetch(`${API}/api/signalements?rayon=2000`);
         const signals = await signalsRes.json();
-
-        const EXCLUDED_TYPES = [
-            'EHPAD', 'Résidence Sociale', 'Autre Résidence Sociale',
-            'Centre Hébergement', 'C.H.R.S.', 'Institut Médico-Educatif', 'I.M.E.',
-            'Maison d\'Accueil Spécialisée', 'M.A.S.',
-            'Service de Soins Infirmiers A Domicile', 'S.S.I.A.D',
-            'Maison d\'Enfants', 'Centre d\'Accueil',
-            'ESAT', 'Aide par le Travail', 'Autre Centre d\'Accueil',
-            'Service d\'Accompagnement à la Vie Sociale', 'S.A.V.S.',
-            'Foyer de Vie', 'Foyer d\'Accueil', 'Lieux de Vie',
-            'Service autonomie aide', 'Pension de Famille',
-            'Etablissement d\'hébergement pour personnes âgées dépendantes'
-        ];
-        const etabs = allEtabs.filter(e => !EXCLUDED_TYPES.some(t => (e.type || '').includes(t)));
-
         clearMarkers();
-        renderEtablissements(etabs);
-        renderProfessionnels(profs);
         renderSignalements(signals);
-
-        document.getElementById('count-etabs').textContent = etabs.length;
-        document.getElementById('count-profs').textContent = profs.length;
         document.getElementById('count-signals').textContent = signals.length;
+
+        let totalEtabs = 0;
+        let totalProfs = 0;
+
+        for (const d of DEPTS) {
+            try {
+                const [etabs, profs] = await Promise.all([
+                    fetch(`${API}/api/data/etablissements?departement=${d}&limit=5000&all=true`).then(r => r.json()),
+                    fetch(`${API}/api/data/professionnels?departement=${d}&limit=5000`).then(r => r.json())
+                ]);
+                renderEtablissements(etabs);
+                renderProfessionnels(profs);
+                totalEtabs += etabs.length;
+                totalProfs += profs.length;
+                document.getElementById('count-etabs').textContent = totalEtabs;
+                document.getElementById('count-profs').textContent = totalProfs;
+            } catch (e) {
+                console.error(`Dept ${d} error:`, e.message);
+            }
+        }
 
     } catch (err) {
         console.error('Load error:', err);
@@ -1066,23 +1061,17 @@ function clearMarkers() {
         }
         markers[layer] = [];
     });
+    clusterGroups.etabs = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true, showCoverageOnHover: false, chunkedLoading: true, chunkInterval: 100, chunkDelay: 10 });
+    clusterGroups.profs = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true, showCoverageOnHover: false, chunkedLoading: true, chunkInterval: 100, chunkDelay: 10 });
+    clusterGroups.signals = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true, showCoverageOnHover: false, chunkedLoading: true, chunkInterval: 100, chunkDelay: 10 });
+    map.addLayer(clusterGroups.etabs);
+    map.addLayer(clusterGroups.profs);
+    map.addLayer(clusterGroups.signals);
 }
 
 function renderEtablissements(etabs) {
-    const icon = L.divIcon({
-        className: 'custom-marker marker-etab',
-        iconSize: [10, 10]
-    });
-
-    const cluster = L.markerClusterGroup({
-        maxClusterRadius: 40,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        chunkedLoading: true,
-        chunkInterval: 100,
-        chunkDelay: 10
-    });
-
+    const icon = L.divIcon({ className: 'custom-marker marker-etab', iconSize: [10, 10] });
+    const cluster = clusterGroups.etabs;
     etabs.forEach(e => {
         if (!e.latitude || !e.longitude) return;
         const marker = L.marker([e.latitude, e.longitude], { icon })
@@ -1090,28 +1079,11 @@ function renderEtablissements(etabs) {
         markers.etabs.push(marker);
         cluster.addLayer(marker);
     });
-
-    clusterGroups.etabs = cluster;
-    if (document.getElementById('layer-etabs') && document.getElementById('layer-etabs').checked) {
-        map.addLayer(cluster);
-    }
 }
 
 function renderProfessionnels(profs) {
-    const icon = L.divIcon({
-        className: 'custom-marker marker-prof',
-        iconSize: [10, 10]
-    });
-
-    const cluster = L.markerClusterGroup({
-        maxClusterRadius: 40,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        chunkedLoading: true,
-        chunkInterval: 100,
-        chunkDelay: 10
-    });
-
+    const icon = L.divIcon({ className: 'custom-marker marker-prof', iconSize: [10, 10] });
+    const cluster = clusterGroups.profs;
     profs.forEach(p => {
         if (!p.latitude || !p.longitude) return;
         const marker = L.marker([p.latitude, p.longitude], { icon })
@@ -1119,20 +1091,10 @@ function renderProfessionnels(profs) {
         markers.profs.push(marker);
         cluster.addLayer(marker);
     });
-
-    clusterGroups.profs = cluster;
-    if (document.getElementById('layer-profs') && document.getElementById('layer-profs').checked) {
-        map.addLayer(cluster);
-    }
 }
 
 function renderSignalements(signals) {
-    const cluster = L.markerClusterGroup({
-        maxClusterRadius: 30,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false
-    });
-
+    const cluster = clusterGroups.signals;
     signals.forEach(s => {
         const color = s.type === 'attente' ? '#f39c12' :
                       s.type === 'fermeture' ? '#e74c3c' :
@@ -1161,11 +1123,6 @@ function renderSignalements(signals) {
         markers.signals.push(marker);
         cluster.addLayer(marker);
     });
-
-    clusterGroups.signals = cluster;
-    if (document.getElementById('layer-signals') && document.getElementById('layer-signals').checked) {
-        map.addLayer(cluster);
-    }
 }
 
 function escapeHtml(str) {
