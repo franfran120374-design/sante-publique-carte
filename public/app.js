@@ -1031,6 +1031,14 @@ async function loadData() {
     barEl.style.width = '0%';
     textEl.textContent = 'Chargement...';
 
+    const dismissSplash = () => {
+        if (splash && splash.parentNode) {
+            splash.classList.add('fade-out');
+            setTimeout(() => { if (splash.parentNode) splash.remove(); }, 700);
+        }
+    };
+    setTimeout(dismissSplash, 15000);
+
     try {
         splashStatus.textContent = 'Récupération des signalements...';
         splashBar.style.width = '5%';
@@ -1081,9 +1089,7 @@ async function loadData() {
         textEl.textContent = 'Zone proche chargée ✓ — chargement reste en arrière-plan...';
         barEl.style.width = '100%';
         setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
-
-        splash.classList.add('fade-out');
-        setTimeout(() => { splash.remove(); }, 700);
+        dismissSplash();
 
         for (let i = 0; i < restDepts.length; i++) {
             const d = restDepts[i];
@@ -1102,13 +1108,12 @@ async function loadData() {
                 autoGeocode('professionnels', profs);
             } catch (e) { console.error(`Dept ${d} error:`, e.message); }
         }
-            } catch (e) { console.error(`Dept ${d} error:`, e.message); }
-        }
 
     } catch (err) {
         console.error('Load error:', err);
         textEl.textContent = '✗ Erreur de chargement';
     }
+    dismissSplash();
 }
 
 const DEPT_CENTER_MAP = {
