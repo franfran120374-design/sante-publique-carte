@@ -21,21 +21,19 @@ module.exports = function(db) {
 
     router.get('/etablissements', async (req, res) => {
         try {
-            const { lat, lng, rayon = 100, type, departement, limit = 50000 } = req.query;
+            const { lat, lng, rayon = 100, type, departement, limit = 50000, all = 'false' } = req.query;
             let query = 'SELECT * FROM etablissements WHERE 1=1';
             const params = [];
             let idx = 1;
 
-            const exclusionClauses = EXCLUDED_TYPES.map(t => {
-                if (db.isPG) {
+            if (all !== 'true') {
+                const exclusionClauses = EXCLUDED_TYPES.map(t => {
                     params.push(`%${t}%`);
-                    return `type NOT ILIKE $${idx++}`;
-                } else {
-                    params.push(`%${t}%`);
+                    if (db.isPG) return `type NOT ILIKE $${idx++}`;
                     return `type NOT LIKE ?`;
-                }
-            });
-            query += ` AND (${exclusionClauses.join(' AND ')})`;
+                });
+                query += ` AND (${exclusionClauses.join(' AND ')})`;
+            }
 
             if (lat && lng) {
                 const latNum = parseFloat(lat);

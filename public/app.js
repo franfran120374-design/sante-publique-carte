@@ -413,7 +413,7 @@ async function applyFilters() {
         lng = deptsCoords[dept].lng;
     }
 
-    let url = `${API}/api/data/etablissements?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=200000`;
+    let url = `${API}/api/data/etablissements?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=200000&all=true`;
     let profUrl = `${API}/api/data/professionnels?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=200000`;
 
     if (dept) {
@@ -430,6 +430,20 @@ async function applyFilters() {
         ]);
         let etabs = await etabsRes.json();
         let profs = await profsRes.json();
+
+        const EXCLUDED_TYPES = [
+            'EHPAD', 'Résidence Sociale', 'Autre Résidence Sociale',
+            'Centre Hébergement', 'C.H.R.S.', 'Institut Médico-Educatif', 'I.M.E.',
+            'Maison d\'Accueil Spécialisée', 'M.A.S.',
+            'Service de Soins Infirmiers A Domicile', 'S.S.I.A.D',
+            'Maison d\'Enfants', 'Centre d\'Accueil',
+            'ESAT', 'Aide par le Travail', 'Autre Centre d\'Accueil',
+            'Service d\'Accompagnement à la Vie Sociale', 'S.A.V.S.',
+            'Foyer de Vie', 'Foyer d\'Accueil', 'Lieux de Vie',
+            'Service autonomie aide', 'Pension de Famille',
+            'Etablissement d\'hébergement pour personnes âgées dépendantes'
+        ];
+        etabs = etabs.filter(e => !EXCLUDED_TYPES.some(t => (e.type || '').includes(t)));
 
         if (secteurs && secteurs !== '1,2,3') {
             const sectArr = secteurs.split(',');
@@ -1007,14 +1021,28 @@ function getUserLocation() {
 async function loadData() {
     try {
         const [etabsRes, profsRes, signalsRes] = await Promise.all([
-            fetch(`${API}/api/data/etablissements?limit=50000`),
-            fetch(`${API}/api/data/professionnels?limit=50000`),
+            fetch(`${API}/api/data/etablissements?limit=200000&all=true`),
+            fetch(`${API}/api/data/professionnels?limit=200000`),
             fetch(`${API}/api/signalements?rayon=2000`)
         ]);
 
-        const etabs = await etabsRes.json();
+        const allEtabs = await etabsRes.json();
         const profs = await profsRes.json();
         const signals = await signalsRes.json();
+
+        const EXCLUDED_TYPES = [
+            'EHPAD', 'Résidence Sociale', 'Autre Résidence Sociale',
+            'Centre Hébergement', 'C.H.R.S.', 'Institut Médico-Educatif', 'I.M.E.',
+            'Maison d\'Accueil Spécialisée', 'M.A.S.',
+            'Service de Soins Infirmiers A Domicile', 'S.S.I.A.D',
+            'Maison d\'Enfants', 'Centre d\'Accueil',
+            'ESAT', 'Aide par le Travail', 'Autre Centre d\'Accueil',
+            'Service d\'Accompagnement à la Vie Sociale', 'S.A.V.S.',
+            'Foyer de Vie', 'Foyer d\'Accueil', 'Lieux de Vie',
+            'Service autonomie aide', 'Pension de Famille',
+            'Etablissement d\'hébergement pour personnes âgées dépendantes'
+        ];
+        const etabs = allEtabs.filter(e => !EXCLUDED_TYPES.some(t => (e.type || '').includes(t)));
 
         clearMarkers();
         renderEtablissements(etabs);
