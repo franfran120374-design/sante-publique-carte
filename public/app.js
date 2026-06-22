@@ -413,8 +413,8 @@ async function applyFilters() {
         lng = deptsCoords[dept].lng;
     }
 
-    let url = `${API}/api/data/etablissements?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=5000`;
-    let profUrl = `${API}/api/data/professionnels?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=5000`;
+    let url = `${API}/api/data/etablissements?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=200000`;
+    let profUrl = `${API}/api/data/professionnels?lat=${lat}&lng=${lng}&rayon=${rayon}&limit=200000`;
 
     if (dept) {
         url += `&departement=${dept}`;
@@ -1007,9 +1007,9 @@ function getUserLocation() {
 async function loadData() {
     try {
         const [etabsRes, profsRes, signalsRes] = await Promise.all([
-            fetch(`${API}/api/data/etablissements?lat=${userLat}&lng=${userLng}&rayon=500&limit=5000`),
-            fetch(`${API}/api/data/professionnels?lat=${userLat}&lng=${userLng}&rayon=500&limit=5000`),
-            fetch(`${API}/api/signalements?lat=${userLat}&lng=${userLng}&rayon=500`)
+            fetch(`${API}/api/data/etablissements?lat=${userLat}&lng=${userLng}&rayon=2000&limit=200000`),
+            fetch(`${API}/api/data/professionnels?lat=${userLat}&lng=${userLng}&rayon=2000&limit=200000`),
+            fetch(`${API}/api/signalements?lat=${userLat}&lng=${userLng}&rayon=2000`)
         ]);
 
         const etabs = await etabsRes.json();

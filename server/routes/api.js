@@ -5,7 +5,7 @@ module.exports = function(db) {
 
     router.get('/signalements', async (req, res) => {
         try {
-            const { lat, lng, rayon = 50, type, limit = 100 } = req.query;
+            const { lat, lng, rayon = 50, type, limit = 1000 } = req.query;
             let query = 'SELECT * FROM signalements WHERE 1=1';
             const params = [];
             let idx = 1;
