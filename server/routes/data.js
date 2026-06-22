@@ -21,7 +21,7 @@ module.exports = function(db) {
 
     router.get('/etablissements', async (req, res) => {
         try {
-            const { lat, lng, rayon = 100, type, departement, limit = 200000 } = req.query;
+            const { lat, lng, rayon = 100, type, departement, limit = 50000 } = req.query;
             let query = 'SELECT * FROM etablissements WHERE 1=1';
             const params = [];
             let idx = 1;
@@ -93,7 +93,7 @@ module.exports = function(db) {
 
     router.get('/professionnels', async (req, res) => {
         try {
-            const { lat, lng, rayon = 100, profession, departement, secteur, limit = 200000 } = req.query;
+            const { lat, lng, rayon = 100, profession, departement, secteur, limit = 50000 } = req.query;
             let query = 'SELECT * FROM professionnels WHERE 1=1';
             const params = [];
             let idx = 1;
