@@ -24,6 +24,9 @@ async function startServer() {
     app.use('/api/data', dataRoutes(db));
     app.use('/api/stats', statsRoutes(db));
 
+    const geocodeRoutes = require('./routes/geocode');
+    app.use('/api/geocode', geocodeRoutes(db));
+
     if (db.isPG && !db.isTurso) {
         const importRealRoutes = require('./routes/import-real');
         app.use('/api/admin', importRealRoutes(db.pool));
